@@ -1,5 +1,11 @@
 # Changelog – FortyGuard Heatmap (QGIS plugin)
 
+## 0.3.1 – 2026-10-13 (experimental)
+
+- FortyGuard confirmed the time-zone semantics: `start_time`/`end_time` are the
+  local time of the area; `time_of_measure` hours are UTC. Dialog text, README
+  and API contract updated; no behaviour change.
+
 ## 0.3.0 – 2026-10-13 (experimental)
 
 Heat-analysis modes matching the FortyGuard Autodesk Forma extension, all

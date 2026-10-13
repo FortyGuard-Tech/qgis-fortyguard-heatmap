@@ -97,7 +97,7 @@ Each mode is one API request; the API computes the result.
 | Temperature / Snapshot | `tcm` | temperature (°C); mean/min/max for daily windows | °C |
 | Exceedance | `exceedance` | total hours above the threshold in the period | hours (`h`) |
 | Persistence | `persistence` | longest continuous run of hours above the threshold | hours (`h`) |
-| Peak temperature time | `time_of_measure` | hour of day (0–23) of the tile's peak | clock classes, labelled **UTC** |
+| Peak temperature time | `time_of_measure` | hour of day (0–23) of the tile's peak | clock classes, labelled **UTC** (confirmed by FortyGuard) |
 
 * **Threshold (°C)** appears only for Exceedance and Persistence (default 35 °C,
   sent with `direction: above`). Exceedance = total hours (may be spread out);
@@ -189,7 +189,7 @@ See `docs/TEST_REPORT.md` for results.
 | "The request may or may not have reached FortyGuard" | Network error during submission. The plugin never resubmits automatically; check credits usage before retrying. |
 | Layer missing after reopening a project | The GeoJSON file was moved/deleted from the output folder. Keep results in a stable folder (the default is `~/Documents/FortyGuard Heatmaps`). |
 | Save key does nothing | QGIS authentication system disabled or master password cancelled; the key still works in memory. |
-| Times/time zone | The API docs do not define the time zone of `start_time`; the plugin sends what you type. Confirm with FortyGuard. |
+| Times/time zone | `start_time`/`end_time` are the local time of the selected area; peak-time results are UTC (both confirmed by FortyGuard). |
 
 Logs: **View ▸ Panels ▸ Log Messages ▸ "FortyGuard Heatmap"**. The key is never logged.
 

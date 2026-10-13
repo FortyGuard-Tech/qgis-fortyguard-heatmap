@@ -1,4 +1,4 @@
-# FortyGuard Heatmap for QGIS – user guide (0.3.0, experimental)
+# FortyGuard Heatmap for QGIS – user guide (0.3.1, experimental)
 
 Generate FortyGuard temperature heatmaps (tcm, °C) for a polygon in your QGIS
 project and add them as styled layers, using **your own FortyGuard API key**.
@@ -25,8 +25,9 @@ QGIS 4 (Qt 6) are not yet tested.
    on the map (Select Features tool). The dialog shows its CRS and area; the
    area is sent to the API as an EPSG:4326 polygon.
 4. **Date and time** – pick a filter type (single hour, range of hours ≤ 23 h,
-   single day, range of days ≤ 31 days) and the required dates/times.
-   Dates must be between 2019-01-01 and now + 12 h.
+   single day, range of days ≤ 31 days, calendar month) and the required dates/times.
+   Times are the local time of the selected area. Dates must be between
+   2019-01-01 and now + 12 h.
 5. **Output** – resolution (60 / 80 / 100 m), the measure to style for daily
    outputs (mean / minimum / maximum), the output folder (default
    `Documents/FortyGuard Heatmaps`) and the maximum wait.
@@ -45,7 +46,7 @@ sending a new request.
 | Temperature / Snapshot | temperature in the period (°C); mean / min / max for daily windows | °C |
 | Exceedance | total hours above your threshold (hours may be spread out) | h |
 | Persistence | longest unbroken run of hours above your threshold | h |
-| Peak temperature time | hour of day when the tile reaches its highest temperature | clock classes, UTC as documented |
+| Peak temperature time | hour of day when the tile reaches its highest temperature | clock classes in UTC (confirmed by FortyGuard) |
 
 The **Threshold (°C)** box appears only for Exceedance and Persistence (default
 35 °C, always "above"). Single hour is not offered for these three analyses;

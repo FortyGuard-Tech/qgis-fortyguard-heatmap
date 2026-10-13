@@ -227,10 +227,9 @@ an analysis; the production environment; 60 m / 80 m requests; rate limiting
 
 ## Unresolved questions (need FortyGuard / API team)
 
-1. **Time zone of `start_time` / `end_time`.** Not stated in any source. Only the
-   `time_of_measure` output is documented as UTC. The plugin sends the time
-   exactly as typed and shows a warning. Please confirm whether times are UTC or
-   local to the AOI.
+1. ~~Time zone of `start_time` / `end_time`.~~ **Resolved 2026-10-13 by the
+   FortyGuard API team: inputs are the local time of the area.** Not documented
+   on the public pages yet; the plugin states it in the dialog.
 2. **`filter_type = 4`.** The Create Heatmap page documents it (≤ 1 month); the
    Known Limitations page lists only filter types 1–3 for heatmaps. The plugin
    offers it (max 31 days) but it is unverified live.
@@ -248,10 +247,8 @@ an analysis; the production environment; 60 m / 80 m requests; rate limiting
    rejects them (one Polygon only, holes preserved).
 7. Response/`map_data` CRS is assumed EPSG:4326 (GeoJSON default; S5 samples are
    lon/lat). The plugin loads the file as-is through OGR.
-8. **Peak-time time zone.** `time_of_measure` is documented as "hour of day
-   (0–23, UTC)". The live sample returned 14 for every tile (10:00 local New
-   York time), which looks more like a local afternoon than UTC. Please confirm
-   whether the value is UTC or AOI-local. The plugin labels it UTC per the docs
-   and does not convert.
+8. ~~Peak-time time zone.~~ **Resolved 2026-10-13 by the FortyGuard API team:
+   `time_of_measure` values are UTC.** The plugin labels them UTC and does not
+   convert them.
 9. Whether `exceedance`/`persistence` values are plain hour counts or
    fractional/area-weighted hours (all observed values are fractional).

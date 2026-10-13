@@ -225,8 +225,9 @@ def build_payload(polygon_geometry, filter_type, start_date, granularity,
     """Build the full POST /v1/heatmap JSON body.
 
     Only documented fields are sent. threshold/direction are included only for
-    exceedance and persistence. No time-zone field is added because the
-    documentation does not define one.
+    exceedance and persistence. No time-zone field exists in the API: start_time
+    and end_time are interpreted by FortyGuard as the local time of the area
+    (confirmed by the API team, 2026-10-13).
     """
     try:
         granularity = int(granularity)

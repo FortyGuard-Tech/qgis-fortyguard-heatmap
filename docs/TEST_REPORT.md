@@ -1,4 +1,4 @@
-# Test report – FortyGuard Heatmap QGIS plugin 0.3.0
+# Test report – FortyGuard Heatmap QGIS plugin 0.3.1 (code identical to 0.3.0 except dialog text)
 
 Environment actually used: macOS 27 (Darwin 27.0.0, Apple Silicon), QGIS
 3.44.15-Solothurn (`/Applications/QGIS.app`), Qt 5.15.19, PyQt 5.15.10,

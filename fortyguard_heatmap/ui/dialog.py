@@ -231,10 +231,10 @@ class HeatmapDialog(QDialog):
         self.end_date_label = QLabel("End date")
         f.addRow(self.end_date_label, self.end_date)
 
-        tz = QLabel("Times are sent exactly as entered (HH:MM). The API documentation does not state the "
-                    "time zone it applies to start_time/end_time; confirm with FortyGuard before relying on hourly results.")
+        tz = QLabel("Start/end times are the local time of the selected area (confirmed by FortyGuard). "
+                    "Peak temperature time results are reported in UTC.")
         tz.setWordWrap(True)
-        tz.setStyleSheet("color: #7a5a00;")
+        tz.setStyleSheet("color: #555; font-size: 11px;")
         f.addRow("", tz)
         root.addWidget(when)
 
@@ -818,7 +818,7 @@ class HeatmapDialog(QDialog):
                              % (responses.format_hour_of_day(pk["mode_hour"]), pk["mode_count"], pk["count"],
                                 100.0 * pk["mode_count"] / pk["count"], pk["missing"],
                                 ("; %d out-of-range values" % pk["invalid"]) if pk["invalid"] else ""))
-                parts.append("Hours are given in %s as documented by FortyGuard (not converted to local time)."
+                parts.append("Peak hours are in %s (confirmed by FortyGuard); they are not converted to the area's local time."
                              % contract.PEAK_TIME_TZ)
             else:
                 parts.append("Peak temperature time: no valid hour values.")

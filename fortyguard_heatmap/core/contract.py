@@ -57,11 +57,12 @@ ANALYSIS_EXPLANATIONS = {
     ANALYTIC_TYPE_TCM: "Temperature across the selected period (°C).",
     ANALYTIC_TYPE_EXCEEDANCE: "Total hours above the selected temperature threshold.",
     ANALYTIC_TYPE_PERSISTENCE: "Longest continuous period (hours) above the threshold.",
-    ANALYTIC_TYPE_TIME_OF_MEASURE: "Hour of day (UTC) when each tile reaches its highest temperature.",
+    ANALYTIC_TYPE_TIME_OF_MEASURE: "Hour of day when each tile reaches its highest temperature (reported in UTC).",
 }
 TCM_UNIT = "°C"  # documented: "tcm — Temperature snapshot; value is temperature (°C) per tile"
 HOURS_UNIT = "h"
-PEAK_TIME_TZ = "UTC"  # documented: "hour of day (0–23, UTC)"
+PEAK_TIME_TZ = "UTC"  # documented "hour of day (0–23, UTC)"; confirmed by the FortyGuard API team 2026-10-13
+INPUT_TIME_ZONE_NOTE = "local time of the area"  # start_time/end_time: confirmed by the FortyGuard API team 2026-10-13
 UNIT_KIND = {  # how to label legends and summaries
     ANALYTIC_TYPE_TCM: "celsius",
     ANALYTIC_TYPE_EXCEEDANCE: "hours",
