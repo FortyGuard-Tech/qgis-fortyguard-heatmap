@@ -1,5 +1,34 @@
 # Changelog – FortyGuard Heatmap (QGIS plugin)
 
+## 0.3.0 – 2026-10-13 (experimental)
+
+Heat-analysis modes matching the FortyGuard Autodesk Forma extension, all
+computed by the API in a single `POST /v1/heatmap` request per result:
+
+- **Analysis type selector:** Temperature / Snapshot (`tcm`), Exceedance
+  (`exceedance`), Persistence (`persistence`), Peak temperature time
+  (`time_of_measure`), each with a one-line explanation.
+- **Threshold (°C)** shown only for Exceedance and Persistence, default 35 °C,
+  validated (−40…70 °C), sent as `threshold` + `direction: "above"`; omitted
+  for the other two analyses.
+- **Calendar month** time option: first/last day computed (leap years, partial
+  current month clipped to now + 12 h, months before 2019 rejected), submitted
+  as `filter_type: 4`.
+- Single hour is disabled for the three analyses; the dialog switches to
+  Single day and says so.
+- Result schema is validated per response (`value` field for analyses,
+  temperature fields for the snapshot). Legends: °C, hours (`h`), or clock
+  classes labelled with the UTC time zone. Zero hours and 00:00 are valid
+  values.
+- Each result is a separate layer named with analysis, dates, resolution and
+  threshold; earlier results are kept.
+- Summaries: temperature range and measure; % of valid tiles with > 0 h and
+  maximum duration; most common peak hour; valid tile counts. Percentages are
+  of tiles, not area.
+- Synthetic demo fixtures for all four modes (with zero values, midnight
+  peaks and one NULL each).
+
+
 ## 0.2.0 – 2026-10-13 (experimental release candidate)
 
 Tested on macOS 27 (Apple Silicon) with QGIS 3.44.15 LTR only.

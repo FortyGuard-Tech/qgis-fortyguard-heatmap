@@ -218,3 +218,74 @@ class UsageParsingTests(unittest.TestCase):
     def test_malformed(self):
         with self.assertRaises(ApiError):
             responses.parse_usage_response(200, b'{"hello": 1}')
+
+
+def _value_tile(k, v):
+    return {"type": "Feature", "properties": {"tile_id": k, "value": v},
+            "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}}
+
+
+class AnalysisSchemaTests(unittest.TestCase):
+    def test_schema_detection(self):
+        self.assertEqual(responses.result_schema({"type": "FeatureCollection", "features": [TILE]}), "aggregate")
+        hourly = dict(TILE, properties={"tile_id": 1, "temperature": 30.1})
+        self.assertEqual(responses.result_schema({"type": "FeatureCollection", "features": [hourly]}), "temperature")
+        self.assertEqual(responses.result_schema({"type": "FeatureCollection", "features": [_value_tile(0, 3.5)]}), "value")
+        self.assertIsNone(responses.result_schema({"type": "FeatureCollection", "features": [_value_tile(0, None)]}))
+        self.assertIsNone(responses.result_schema({"type": "FeatureCollection", "features": []}))
+
+    def test_real_exceedance_and_persistence_samples(self):
+        import os
+        here = os.path.dirname(os.path.abspath(__file__))
+        for name in ("exceedance", "persistence"):
+            doc = json.load(open(os.path.join(here, "fixtures", "real_%s_sample.json" % name)))
+            md = responses.validate_map_data(doc["map_data"])
+            self.assertEqual(responses.result_schema(md), "value")
+            self.assertEqual(responses.available_measures(md), [], "analysis tiles carry no temperature fields")
+            st = responses.analysis_stats(doc["stats_data"])
+            self.assertEqual(st["analytic_type"], name)
+            self.assertEqual(st["units"], "hour")
+            self.assertEqual(st["n_cells"], 329)
+            d = responses.duration_summary(md)
+            self.assertEqual(d["count"], 12)
+            self.assertEqual(d["missing"], 0)
+            self.assertGreater(d["max"], 0)
+            self.assertEqual(d["positive_pct_of_valid_tiles"], 100.0)
+
+    def test_zero_duration_is_valid_not_missing(self):
+        md = {"type": "FeatureCollection", "features": [_value_tile(0, 0), _value_tile(1, 0.0), _value_tile(2, 4.5),
+                                                        _value_tile(3, None), _value_tile(4, "n/a")]}
+        d = responses.duration_summary(md)
+        self.assertEqual(d["count"], 3)
+        self.assertEqual(d["missing"], 2)
+        self.assertEqual(d["positive"], 1)
+        self.assertAlmostEqual(d["positive_pct_of_valid_tiles"], 100.0 / 3)
+        self.assertEqual(d["min"], 0.0)
+        self.assertEqual(d["max"], 4.5)
+        self.assertEqual(responses.result_schema(md), "value")
+
+    def test_duration_summary_all_missing(self):
+        d = responses.duration_summary({"type": "FeatureCollection", "features": [_value_tile(0, None)]})
+        self.assertEqual(d["count"], 0)
+        self.assertIsNone(d["positive_pct_of_valid_tiles"])
+
+    def test_midnight_peak_time_is_valid(self):
+        md = {"type": "FeatureCollection", "features": [_value_tile(0, 0), _value_tile(1, 0), _value_tile(2, 14),
+                                                        _value_tile(3, 14.0), _value_tile(4, None), _value_tile(5, 23),
+                                                        _value_tile(6, 25)]}
+        pk = responses.peak_time_summary(md)
+        self.assertEqual(pk["count"], 5)
+        self.assertEqual(pk["missing"], 1)
+        self.assertEqual(pk["invalid"], 1)
+        self.assertEqual(pk["mode_hour"], 0, "ties resolve to the earliest hour; 00:00 is a real result")
+        self.assertEqual(pk["mode_count"], 2)
+        self.assertEqual(responses.format_hour_of_day(0), "00:00 UTC")
+        self.assertEqual(responses.format_hour_of_day(14), "14:00 UTC")
+        md2 = {"type": "FeatureCollection", "features": [_value_tile(0, 15), _value_tile(1, 15), _value_tile(2, 0)]}
+        self.assertEqual(responses.peak_time_summary(md2)["mode_hour"], 15)
+        self.assertIsNone(responses.peak_time_summary({"type": "FeatureCollection", "features": []})["mode_hour"])
+
+    def test_analysis_stats_tolerates_junk(self):
+        self.assertEqual(responses.analysis_stats(None), {})
+        st = responses.analysis_stats({"analytic_type": "exceedance", "units": "hour", "n_cells": "many", "min": 0, "max": None})
+        self.assertEqual(st, {"analytic_type": "exceedance", "units": "hour", "min": 0.0})

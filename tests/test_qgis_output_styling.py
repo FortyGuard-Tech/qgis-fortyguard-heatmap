@@ -118,3 +118,71 @@ def gpath_that_is_a_file(tmp):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(qgis_env.qgis_available(), "QGIS runtime not available")
+class AnalysisStylingTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="fg_ana_")
+        QgsProject.instance().clear()
+
+    def tearDown(self):
+        QgsProject.instance().clear()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _load(self, fixture, analytic, threshold=None):
+        from fortyguard_heatmap.core import contract
+        map_data, stats = demo.load_fixture(fixture)
+        responses.validate_map_data(map_data)
+        self.assertEqual(responses.result_schema(map_data), "value")
+        summary = "2024-07-15 to 2024-07-21 | 100 m" + (" | above %g °C" % threshold if threshold else "")
+        gpath, mpath = output.save_result(self.tmp, map_data, stats, summary, "demo-x", demo=True, analytic_type=analytic)
+        self.assertTrue(os.path.basename(gpath).startswith("fortyguard_DEMO_%s_" % analytic))
+        name = output.layer_name("value", summary, demo=True, analytic_type=analytic)
+        layer = output.load_layer(gpath, name, "value", summary, "demo-x", demo=True, analytic_type=analytic, threshold=threshold)
+        return map_data, stats, layer
+
+    def test_exceedance_hours_legend_and_zero_in_first_class(self):
+        md, st, layer = self._load("exceedance", "exceedance", threshold=35)
+        self.assertIn("Exceedance hours", layer.name())
+        self.assertIn("above 35 °C", layer.name())
+        self.assertEqual(layer.customProperty(output.PROP_ANALYSIS), "exceedance")
+        self.assertEqual(layer.customProperty(output.PROP_THRESHOLD), "35")
+        n = styling.apply_analysis_style(layer, "value", "hours")
+        self.assertGreaterEqual(n, 2)
+        ranges = layer.renderer().ranges()
+        self.assertTrue(all(r.label().endswith(" h") for r in ranges), [r.label() for r in ranges])
+        self.assertEqual(ranges[0].lowerValue(), 0.0, "zero hours is a valid value in the first class")
+        d = responses.duration_summary(md)
+        self.assertEqual(d["missing"], 1)
+        self.assertGreater(d["positive"], 0)
+        self.assertEqual(d["count"], 181)
+
+    def test_persistence_legend(self):
+        md, st, layer = self._load("persistence", "persistence", threshold=35)
+        self.assertIn("Persistence hours", layer.name())
+        styling.apply_analysis_style(layer, "value", "hours")
+        self.assertTrue(all(" h" in r.label() for r in layer.renderer().ranges()))
+
+    def test_peak_time_fixed_clock_classes(self):
+        md, st, layer = self._load("time_of_measure", "time_of_measure")
+        self.assertIn("Peak temperature time hour of day (UTC)", layer.name())
+        n = styling.apply_analysis_style(layer, "value", "hour_of_day")
+        self.assertEqual(n, 6)
+        labels = [r.label() for r in layer.renderer().ranges()]
+        self.assertEqual(labels[0], "00:00 - 03:59 UTC")
+        self.assertEqual(labels[-1], "20:00 - 23:59 UTC")
+        self.assertEqual(layer.renderer().ranges()[0].lowerValue(), 0.0, "midnight (0) is a valid peak hour")
+        pk = responses.peak_time_summary(md)
+        self.assertEqual(pk["missing"], 1)
+        self.assertIsNotNone(pk["mode_hour"])
+        self.assertIn(0, pk["histogram"])
+
+    def test_temperature_style_unchanged(self):
+        map_data, stats = demo.load_fixture("daily")
+        gpath, _ = output.save_result(self.tmp, map_data, stats, "2024-07-15 | 100 m", "demo-x", demo=True)
+        layer = output.load_layer(gpath, output.layer_name("average_temperature", "2024-07-15 | 100 m", demo=True),
+                                  "average_temperature", "2024-07-15 | 100 m", "demo-x", demo=True)
+        self.assertEqual(layer.customProperty(output.PROP_ANALYSIS), "tcm")
+        styling.apply_temperature_style(layer, "average_temperature")
+        self.assertTrue(all("°C" in r.label() for r in layer.renderer().ranges()))

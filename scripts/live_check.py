@@ -55,6 +55,8 @@ def main():
     ap.add_argument("--end-time", default=None, help="HH:MM for filter 2")
     ap.add_argument("--end-date", default=None, help="YYYY-MM-DD for filter 4")
     ap.add_argument("--granularity", type=int, default=100)
+    ap.add_argument("--analytic", default="tcm", choices=["tcm", "exceedance", "persistence", "time_of_measure"])
+    ap.add_argument("--threshold", type=float, default=None, help="°C, required for exceedance/persistence")
     ap.add_argument("--out", default=os.path.expanduser("~/Documents/FortyGuard Heatmaps"))
     ap.add_argument("--max-wait-min", type=int, default=20)
     ap.add_argument("--base-url", default=None, help="override API base URL (e.g. dev environment)")
@@ -85,7 +87,9 @@ def main():
         gj = gj["features"][0]
     geom = gj["geometry"] if gj.get("type") == "Feature" else gj
     body = payload.build_payload(geom, args.filter, args.date, args.granularity,
-                                 start_time=args.start_time, end_time=args.end_time, end_date=args.end_date)
+                                 start_time=args.start_time, end_time=args.end_time, end_date=args.end_date,
+                                 analytic_type=args.analytic, threshold=args.threshold,
+                                 direction="above" if args.threshold is not None else None)
     summary = payload.describe_request(body)
     print("Request:", json.dumps({k: v for k, v in body.items() if k != "polygon_aoi"}))
     print("AOI ring points:", len(body["polygon_aoi"]["features"][0]["geometry"]["coordinates"][0]))
@@ -117,15 +121,19 @@ def main():
         keys = sorted({k for f in feats for k in (f.get("properties") or {}).keys()})
         gtypes = sorted({(f.get("geometry") or {}).get("type") for f in feats})
         measures = responses.available_measures(md)
+        schema = responses.result_schema(md)
         report.update({
-            "n_features": len(feats), "geometry_types": gtypes, "property_keys": keys,
+            "n_features": len(feats), "geometry_types": gtypes, "property_keys": keys, "schema": schema,
             "available_measures": measures,
-            "ranges": {m: responses.numeric_summary(md, m) for m in measures},
+            "ranges": {m: responses.numeric_summary(md, m) for m in (measures or ([contract.FIELD_VALUE] if schema == "value" else []))},
             "stats_data_keys": sorted(st.keys()) if isinstance(st, dict) else None,
             "temperature_stats": responses.temperature_stats(st),
+            "analysis_stats": responses.analysis_stats(st),
+            "duration_summary": responses.duration_summary(md) if args.analytic in ("exceedance", "persistence") else None,
+            "peak_time_summary": {k: v for k, v in responses.peak_time_summary(md).items() if k != "histogram"} if args.analytic == "time_of_measure" else None,
             "first_feature_properties": feats[0].get("properties"),
         })
-        gpath, mpath = output.save_result(args.out, md, st, summary, job.activity_id, demo=False)
+        gpath, mpath = output.save_result(args.out, md, st, summary, job.activity_id, demo=False, analytic_type=args.analytic)
         report["saved_geojson"] = gpath
         report["saved_meta"] = mpath
         with open(os.path.splitext(gpath)[0] + ".live_check.json", "w", encoding="utf-8") as fh:

@@ -20,12 +20,22 @@ DEMO_ACTIVITY_PREFIX = "demo-"
 FIXTURES = {
     "single_hour": "demo_result_single_hour.geojson",
     "daily": "demo_result_daily.geojson",
+    "exceedance": "demo_result_exceedance.geojson",
+    "persistence": "demo_result_persistence.geojson",
+    "time_of_measure": "demo_result_time_of_measure.geojson",
 }
 DEMO_AOI_FILE = "demo_aoi.geojson"
 
 
 def fixture_for_filter(filter_type):
     return "single_hour" if int(filter_type) in (contract.FILTER_SINGLE_HOUR, contract.FILTER_RANGE_OF_HOURS) else "daily"
+
+
+def fixture_for_request(analytic_type, filter_type):
+    if analytic_type in (contract.ANALYTIC_TYPE_EXCEEDANCE, contract.ANALYTIC_TYPE_PERSISTENCE,
+                         contract.ANALYTIC_TYPE_TIME_OF_MEASURE):
+        return analytic_type
+    return fixture_for_filter(filter_type)
 
 
 def load_fixture(name):

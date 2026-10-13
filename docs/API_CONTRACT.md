@@ -56,8 +56,10 @@ loading layers, CRS, tasks (3.44), plus plugins.qgis.org *publish* and
 | `date_time.start_time`, `end_time` | `HH:MM` 24-hour. `end_time` auto-calculated for filter 1 (start + 1 h). | S1, S4 |
 | `date_time.end_date` | Required for filter 4; auto-populated for 1–3. | S1 |
 | `granularity` | one of **60, 80, 100** (metres). | S1, S4, S5 |
-| `analytic_type` | `tcm` (default, temperature snapshot, °C), `time_of_measure`, `exceedance`, `persistence`. The plugin only sends `tcm`. | S1, S5 |
-| `threshold`, `direction` | Only for exceedance/persistence; not sent by the plugin. | S1 |
+| `analytic_type` | `tcm` (default, temperature snapshot, °C); `time_of_measure` ("hour of day (0–23, UTC) at which the peak temperature occurs"); `exceedance` ("number of hours the temperature passes the threshold"); `persistence` ("longest continuous run of hours past the threshold"). "time_of_measure, exceedance and persistence return values in hours (stats_data.units = "hour"); tcm returns °C." The plugin (0.3.0) sends all four. | S1, S5 |
+| `threshold` | "Temperature threshold in °C for exceedance / persistence. Defaults to 30 °C. Ignored by tcm and time_of_measure." The plugin starts at 35 °C and sends it only for exceedance/persistence. | S1 |
+| `direction` | "'above' (default) counts hours above the threshold, 'below' counts hours below it. Ignored by tcm and time_of_measure." The plugin always sends `above` with a threshold. | S1 |
+| Time window for analyses | Quickstart README: analysis heatmaps are computed "over a multi-hour or multi-day window (filter_type 2 or 4)". The Forma extension disables Single hour for them. The plugin allows filter types 2, 3, 4 and a Calendar month (= filter 4) and rejects 1. Filter 3 with an analysis is **unverified**. | S5, Forma UI |
 
 The plugin sends **only** the fields required by the chosen filter type plus
 `granularity` and `analytic_type`. No time-zone field exists in the
@@ -119,6 +121,26 @@ in S5 contain only the `result` part (`map_data` + `stats_data`).
 The plugin detects which numeric field exists at runtime (`temperature` first,
 then `average_temperature`, `max_temperature`, `min_temperature`) and refuses
 to style if none is numeric.
+
+### Analysis tile schema (`exceedance`, `persistence`, `time_of_measure`)
+
+Documented (S5 README/notebook) and confirmed by the two **real cached
+responses** in S5 (`heatmap_parcel_diridon_san_jose_2024-07-12_2024-07-18_exceedance.json`
+and `_persistence.json`, 329 tiles each, filter 4, 7 days):
+
+* `map_data.features[].properties` = `{"tile_id": int, "value": float}` – no
+  temperature fields. Values are **fractional hours** (e.g. exceedance 25.51–40.68 h,
+  persistence 2.07–8.73 h over 7 days), not integers.
+* `stats_data` = `{"activity_id", "analytic_type", "units": "hour", "n_cells", "min", "max", "mean"}`.
+* `time_of_measure`: no real sample. Documented as hour of day 0–23 **UTC**;
+  `stats_data.units` is also "hour". The plugin labels its legend classes
+  `HH:00 - HH:59 UTC` and never converts to local time.
+* Zero is a valid duration (no hours past the threshold) and `0` is a valid peak
+  hour (00:00 UTC). The plugin treats only null/non-numeric as missing.
+
+Threshold semantics (verified S1 text): exceedance counts hours past the
+threshold in the chosen direction; persistence is the longest continuous run of
+such hours. Both are counts of hours, not degree-hours (S5 README).
 
 ### `stats_data` (tcm)
 
@@ -182,9 +204,26 @@ One approved request was sent through the plugin's own client/job code
 | `map_data` | 150 `Polygon` tiles; properties **`tile_id`, `average_temperature`, `min_temperature`, `max_temperature`** with identical values per tile (31.89–33.14 °C). **The documented hourly field `temperature` was not present.** The plugin auto-detects fields, so it styled `average_temperature`. |
 | Usage endpoint (dev) before the request | HTTP 200: Premium (One-Time), key active, 995,780 of 1,000,000 credits, expiry 2026-10-19T14:36:30Z |
 
-Still **not** live-verified: filter types 2 and 4; the production environment;
-60 m / 80 m requests; rate limiting (429); whether production ever returns a
-`temperature` field for hourly requests.
+### Analysis types live (2026-10-13 14:45, development environment, plugin client code)
+
+Three approved requests, same AOI, `filter_type 4`, 2024-07-15 to 2024-07-21, 100 m:
+
+| `analytic_type` | Activity | Tiles / schema | Values | `stats_data` |
+|---|---|---|---|---|
+| `exceedance` (threshold 35 °C, above) | `d0439dfd-…` | 150 Polygon, `{tile_id, value}` | 0.98–6.03 h, mean 2.46, all > 0 | `{analytic_type: exceedance, units: hour, n_cells: 150, min, max, mean}` |
+| `persistence` (threshold 35 °C, above) | `c9836df7-…` | 150, `{tile_id, value}` | 0.87–1.50 h, mean 1.06 | same shape, `units: hour` |
+| `time_of_measure` | `a6f5d9ef-…` | 150, `{tile_id, value}` | **14.0 for every tile** | `{analytic_type: time_of_measure, units: hour, n_cells: 150, min 14, max 14, mean 14}` |
+
+Observations: values are fractional hours as in the cached samples; threshold
+and direction were accepted; a 7-day window is well within the "≤ 1 month"
+limit. The peak-time result of 14 for all tiles is documented as UTC
+(10:00 local in New York in July); whether the API really reports UTC or local
+time cannot be told from this uniform sample, so the plugin labels the legend
+"UTC" exactly as documented and asks FortyGuard to confirm (open question 8).
+
+Still **not** live-verified by this plugin: filter type 2; filter type 3 with
+an analysis; the production environment; 60 m / 80 m requests; rate limiting
+(429); whether production ever returns a `temperature` field for hourly requests.
 
 ## Unresolved questions (need FortyGuard / API team)
 
@@ -209,3 +248,10 @@ Still **not** live-verified: filter types 2 and 4; the production environment;
    rejects them (one Polygon only, holes preserved).
 7. Response/`map_data` CRS is assumed EPSG:4326 (GeoJSON default; S5 samples are
    lon/lat). The plugin loads the file as-is through OGR.
+8. **Peak-time time zone.** `time_of_measure` is documented as "hour of day
+   (0–23, UTC)". The live sample returned 14 for every tile (10:00 local New
+   York time), which looks more like a local afternoon than UTC. Please confirm
+   whether the value is UTC or AOI-local. The plugin labels it UTC per the docs
+   and does not convert.
+9. Whether `exceedance`/`persistence` values are plain hour counts or
+   fractional/area-weighted hours (all observed values are fractional).

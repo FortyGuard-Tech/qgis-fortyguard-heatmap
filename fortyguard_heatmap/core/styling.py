@@ -27,6 +27,33 @@ def temperature_ramp():
     return ramp
 
 
+def hours_ramp():
+    """Pale -> deep orange for durations (hours)."""
+    ramp = QgsGradientColorRamp(QColor(255, 247, 236), QColor(127, 39, 4))
+    ramp.setStops([QgsGradientStop(0.35, QColor(253, 187, 132)), QgsGradientStop(0.7, QColor(239, 101, 72))])
+    return ramp
+
+
+def hour_of_day_ramp():
+    """Night (deep blue) -> midday (yellow) -> evening (purple) for peak hour."""
+    ramp = QgsGradientColorRamp(QColor(37, 52, 148), QColor(84, 39, 143))
+    ramp.setStops([QgsGradientStop(0.25, QColor(65, 182, 196)), QgsGradientStop(0.5, QColor(253, 224, 61)),
+                   QgsGradientStop(0.75, QColor(240, 96, 96))])
+    return ramp
+
+
+def range_label(lower, upper, unit_kind):
+    if unit_kind == "celsius":
+        return "%.1f - %.1f %s" % (lower, upper, contract.TCM_UNIT)
+    if unit_kind == "hours":
+        return "%.1f - %.1f %s" % (lower, upper, contract.HOURS_UNIT)
+    if unit_kind == "hour_of_day":
+        lo = int(lower)
+        hi = int(upper) - 1 if upper > lower else int(upper)
+        return "%02d:00 - %02d:59 %s" % (lo, max(lo, hi), contract.PEAK_TIME_TZ)
+    return "%.2f - %.2f" % (lower, upper)
+
+
 def numeric_field_index(layer, field_name):
     idx = layer.fields().indexOf(field_name)
     if idx < 0:
@@ -39,34 +66,49 @@ def numeric_field_index(layer, field_name):
 
 
 def apply_temperature_style(layer, field_name, classes=7, method="quantile"):
-    """Apply a graduated renderer on ``field_name`` with unit-labelled legend classes.
+    """Graduated °C renderer (kept for the temperature snapshot)."""
+    return apply_analysis_style(layer, field_name, "celsius", classes=classes, method=method)
 
-    Returns the number of classes created. Raises ApiError if the field is missing
-    or non-numeric. Features with NULL values are simply not rendered by QGIS.
+
+def apply_analysis_style(layer, field_name, unit_kind, classes=7, method=None):
+    """Apply a graduated renderer on ``field_name`` with legend labels in the right unit.
+
+    unit_kind: 'celsius' (quantile classes), 'hours' (equal-interval classes; 0 is a
+    valid value and sits in the first class) or 'hour_of_day' (six fixed 4-hour
+    classes with clock labels, time zone stated).
+    Returns the number of classes. Raises ApiError if the field is missing/non-numeric.
+    Features with NULL values are not rendered.
     """
-    numeric_field_index(layer, field_name)
-
+    idx = numeric_field_index(layer, field_name)
     symbol = QgsFillSymbol.createSimple({"outline_style": "no", "outline_width": "0"})
     symbol.setOpacity(0.8)
     renderer = QgsGraduatedSymbolRenderer(field_name)
     renderer.setSourceSymbol(symbol)
-    renderer.setSourceColorRamp(temperature_ramp())
-    renderer.setClassificationMethod(
-        QgsClassificationQuantile() if method == "quantile" else QgsClassificationEqualInterval())
-    renderer.updateClasses(layer, classes)
+    ramp = {"celsius": temperature_ramp, "hours": hours_ramp, "hour_of_day": hour_of_day_ramp}.get(unit_kind, temperature_ramp)()
+    renderer.setSourceColorRamp(ramp)
 
-    # If every value is identical (or quantiles collapse), make sure at least one class exists.
-    if len(renderer.ranges()) == 0:
-        vmin, vmax = layer.minimumValue(layer.fields().indexOf(field_name)), layer.maximumValue(layer.fields().indexOf(field_name))
-        if vmin is None or vmax is None:
-            raise ApiError("Field '%s' has no numeric values to classify." % field_name, kind="malformed")
-        renderer.addClassRange(QgsRendererRange(float(vmin), float(vmax), symbol.clone(), "%s" % vmin))
-        renderer.updateColorRamp(temperature_ramp())
-
-    unit = contract.TCM_UNIT
-    # ranges() returns copies, so update labels by index.
-    for i, rng in enumerate(renderer.ranges()):
-        renderer.updateRangeLabel(i, "%.1f - %.1f %s" % (rng.lowerValue(), rng.upperValue(), unit))
+    if unit_kind == "hour_of_day":
+        bounds = [0, 4, 8, 12, 16, 20, 24]
+        n = len(bounds) - 1
+        for i in range(n):
+            sym = symbol.clone()
+            sym.setColor(ramp.color(i / float(n - 1)))
+            renderer.addClassRange(QgsRendererRange(float(bounds[i]), float(bounds[i + 1]), sym,
+                                                    range_label(bounds[i], bounds[i + 1], unit_kind)))
+    else:
+        if method is None:
+            method = "quantile" if unit_kind == "celsius" else "equal"
+        renderer.setClassificationMethod(
+            QgsClassificationQuantile() if method == "quantile" else QgsClassificationEqualInterval())
+        renderer.updateClasses(layer, classes)
+        if len(renderer.ranges()) == 0:
+            vmin, vmax = layer.minimumValue(idx), layer.maximumValue(idx)
+            if vmin is None or vmax is None:
+                raise ApiError("Field '%s' has no numeric values to classify." % field_name, kind="malformed")
+            renderer.addClassRange(QgsRendererRange(float(vmin), float(vmax), symbol.clone(), "%s" % vmin))
+            renderer.updateColorRamp(ramp)
+        for i, rng in enumerate(renderer.ranges()):  # ranges() returns copies -> update by index
+            renderer.updateRangeLabel(i, range_label(rng.lowerValue(), rng.upperValue(), unit_kind))
 
     layer.setRenderer(renderer)
     layer.triggerRepaint()

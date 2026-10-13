@@ -151,3 +151,104 @@ class DescribeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AnalysisPayloadTests(unittest.TestCase):
+    def _p(self, analytic, ft=3, **kw):
+        kw.setdefault("end_date", "2024-07-21" if ft == 4 else None)
+        kw.setdefault("start_time", "12:00" if ft in (1, 2) else None)
+        kw.setdefault("end_time", "17:00" if ft == 2 else None)
+        return payload.build_payload(SQUARE, ft, "2024-07-15", 100, now=NOW, analytic_type=analytic, **kw)
+
+    def test_tcm_omits_threshold_even_if_given(self):
+        p = self._p("tcm", threshold=35, direction="above")
+        self.assertEqual(p["analytic_type"], "tcm")
+        self.assertNotIn("threshold", p)
+        self.assertNotIn("direction", p)
+
+    def test_exceedance_and_persistence_send_threshold_above(self):
+        for at in ("exceedance", "persistence"):
+            p = self._p(at, threshold=35)
+            self.assertEqual(p["analytic_type"], at)
+            self.assertEqual(p["threshold"], 35.0)
+            self.assertEqual(p["direction"], "above")
+            self.assertEqual(set(p), {"polygon_aoi", "date_time", "granularity", "analytic_type", "threshold", "direction"})
+
+    def test_time_of_measure_omits_threshold(self):
+        p = self._p("time_of_measure", ft=4, threshold=35)
+        self.assertEqual(p["analytic_type"], "time_of_measure")
+        self.assertNotIn("threshold", p)
+        self.assertNotIn("direction", p)
+
+    def test_threshold_required_and_bounded(self):
+        with self.assertRaises(ValidationError):
+            self._p("exceedance")
+        with self.assertRaises(ValidationError):
+            self._p("persistence", threshold="hot")
+        with self.assertRaises(ValidationError):
+            self._p("exceedance", threshold=120)
+        with self.assertRaises(ValidationError):
+            self._p("exceedance", threshold=float("nan"))
+        self.assertEqual(self._p("exceedance", threshold="35.5")["threshold"], 35.5)
+
+    def test_only_above_direction(self):
+        with self.assertRaises(ValidationError):
+            self._p("exceedance", threshold=35, direction="below")
+
+    def test_single_hour_rejected_for_analyses(self):
+        for at in ("exceedance", "persistence", "time_of_measure"):
+            with self.assertRaises(ValidationError) as cm:
+                self._p(at, ft=1, threshold=35)
+            self.assertIn("single hour", str(cm.exception).lower())
+        self._p("tcm", ft=1)  # snapshot still allows single hour
+        for ft in (2, 3, 4):
+            self._p("exceedance", ft=ft, threshold=35)
+
+    def test_unknown_analysis(self):
+        with self.assertRaises(ValidationError):
+            self._p("heat_index")
+
+    def test_describe_includes_threshold(self):
+        p = self._p("exceedance", ft=4, threshold=35)
+        self.assertEqual(payload.describe_request(p), "2024-07-15 to 2024-07-21 | 100 m | above 35 °C")
+        self.assertNotIn("above", payload.describe_request(self._p("tcm")))
+
+
+class MonthRangeTests(unittest.TestCase):
+    def test_full_past_months_and_leap_year(self):
+        self.assertEqual(payload.month_range(2024, 2, now=NOW), ("2024-02-01", "2024-02-29"))
+        self.assertEqual(payload.month_range(2023, 2, now=NOW), ("2023-02-01", "2023-02-28"))
+        self.assertEqual(payload.month_range(2100, 2, now=dt.datetime(2100, 6, 1)), ("2100-02-01", "2100-02-28"))
+        self.assertEqual(payload.month_range(2024, 7, now=NOW), ("2024-07-01", "2024-07-31"))
+        self.assertEqual(payload.month_range(2024, 12, now=NOW), ("2024-12-01", "2024-12-31"))
+
+    def test_month_fits_documented_maximum_range(self):
+        first, last = payload.month_range(2024, 7, now=NOW)
+        payload.build_date_time(4, first, end_date=last, now=NOW)  # 31-day month passes the <= 31 day rule
+
+    def test_current_month_is_clipped_to_latest_allowed_date(self):
+        # NOW = 2026-10-12 15:00 -> latest allowed date is 2026-10-13 (now + 12 h)
+        self.assertEqual(payload.month_range(2026, 10, now=NOW), ("2026-10-01", "2026-10-13"))
+
+    def test_future_month_rejected(self):
+        with self.assertRaises(ValidationError):
+            payload.month_range(2026, 11, now=NOW)
+        with self.assertRaises(ValidationError):
+            payload.month_range(2027, 1, now=NOW)
+
+    def test_month_before_api_start_rejected_and_partial_first_month(self):
+        with self.assertRaises(ValidationError):
+            payload.month_range(2018, 12, now=NOW)
+        self.assertEqual(payload.month_range(2019, 1, now=NOW), ("2019-01-01", "2019-01-31"))
+
+    def test_month_with_a_single_available_day(self):
+        now = dt.datetime(2026, 10, 1, 1, 0)  # latest allowed = 2026-10-01
+        with self.assertRaises(ValidationError) as cm:
+            payload.month_range(2026, 10, now=now)
+        self.assertIn("Single day", str(cm.exception))
+
+    def test_invalid_month(self):
+        with self.assertRaises(ValidationError):
+            payload.month_range(2024, 13, now=NOW)
+        with self.assertRaises(ValidationError):
+            payload.month_range("x", 1, now=NOW)

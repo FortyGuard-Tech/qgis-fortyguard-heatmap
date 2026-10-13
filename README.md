@@ -87,6 +87,30 @@ and are never presented as a FortyGuard analysis.
 
 ---
 
+## 2b. Analysis modes (0.3.0)
+
+The **Analysis** box offers the four modes of the FortyGuard Forma extension.
+Each mode is one API request; the API computes the result.
+
+| Mode | `analytic_type` | Result per tile | Legend |
+|------|-----------------|-----------------|--------|
+| Temperature / Snapshot | `tcm` | temperature (°C); mean/min/max for daily windows | °C |
+| Exceedance | `exceedance` | total hours above the threshold in the period | hours (`h`) |
+| Persistence | `persistence` | longest continuous run of hours above the threshold | hours (`h`) |
+| Peak temperature time | `time_of_measure` | hour of day (0–23) of the tile's peak | clock classes, labelled **UTC** |
+
+* **Threshold (°C)** appears only for Exceedance and Persistence (default 35 °C,
+  sent with `direction: above`). Exceedance = total hours (may be spread out);
+  Persistence = the longest unbroken stretch.
+* **Single hour** is not available for the three analyses; the dialog switches
+  to Single day and tells you.
+* **Calendar month** submits the month's first and last day as a range of days
+  (leap years handled; the current month is clipped to now + 12 h).
+* Every result becomes its own layer named with the analysis, dates, resolution
+  and threshold. Zero hours and 00:00 are shown as real values, not gaps.
+* The summary shows valid tile counts, the share of valid **tiles** (not area)
+  with more than 0 h and the maximum duration, or the most common peak hour.
+
 ## 3. Run a real request
 
 Before the first live request read `docs/API_CONTRACT.md` → *Plans, credits,

@@ -1,4 +1,4 @@
-# Test report – FortyGuard Heatmap QGIS plugin 0.2.0
+# Test report – FortyGuard Heatmap QGIS plugin 0.3.0
 
 Environment actually used: macOS 27 (Darwin 27.0.0, Apple Silicon), QGIS
 3.44.15-Solothurn (`/Applications/QGIS.app`), Qt 5.15.19, PyQt 5.15.10,
@@ -8,54 +8,53 @@ was tested.**
 
 ## 1. Automated tests – executed
 
-Command: `scripts/run_tests.sh` (last run 2026-10-13 after the 0.2.0 changes).
-Result: **100 tests, 99 passed, 1 skipped, 0 failed** (49 of them also pass on
-plain system Python without QGIS).
+Command: `scripts/run_tests.sh` (last run 2026-10-13 after the 0.3.0 changes).
+Result: **131 tests, 130 passed, 1 skipped, 0 failed** (70 of them also pass
+on plain system Python without QGIS).
 
 | Suite | Covers | Tests |
 |-------|--------|-------|
-| `test_payload.py` | payload per filter type, date/time formats and documented bounds, granularity restriction, polygon validation (holes, lon/lat order, closed rings, MultiPolygon/Point/projected coordinates rejected) | 24 |
-| `test_responses.py` | submit/status envelopes, HTTP 400/401/403/404/422/429/5xx classification, `details.message` (live shape), terminal states case-insensitive, result extraction, empty/non-polygon `map_data`, measure detection, NULL values, stats keys, **usage endpoint parsing (live shape, 500 explanation, 401, malformed)** | 25 |
-| `test_polling.py` | fixed interval, deadline, backoff, rate-limit interval, consecutive-failure limit, fatal stop, reset | 7 |
-| `test_qgis_geometry.py` | one-selection rule, non-polygon layer, EPSG:3857→4326 with hole kept and source untouched, MultiPolygon handling, invalid/empty geometry, ellipsoidal area | 6 |
-| `test_qgis_output_styling.py` | fixtures vs documented schemas, save + OGR load + °C graduated style, restyle, non-numeric field rejected, never overwrite, sidecar without key, project save/reopen keeps the layer | 7 |
-| `test_qgis_job.py` | real `QgsNetworkAccessManager` against a scripted local server: headers/body, single POST, 404 retry, Failed terminal, 401 keeps activity id, submit errors never retried, deadline then resume without new POST, 5xx give-up, Stop Waiting, double submit ignored, empty result, network error warning, **usage endpoint POST + parsing, usage 500**, demo client | 16 |
-| `test_qgis_dialog_demo.py` | offscreen GUI: plugin initGui/run/unload, Demo Mode end to end (single hour + daily), restyle, validation without selection, key required in live mode, **new-installation defaults (no key, masked field, production, developer group collapsed, default output folder)**, **environment switch clears the key**, credits check requires key, shutdown cleanup | 9 |
-| `test_qgis_credentials.py` | `mask()` never reveals the key (pass); encrypted store/load/forget (**skipped** unless `FG_TEST_AUTH_STORE=1`, because the headless run blocks on the macOS keychain) | 2 |
+| `test_payload.py` | tcm payload per filter type, date/time formats and documented bounds, granularity, polygon validation; **analysis payloads: threshold + direction only for exceedance/persistence, omitted for tcm/time_of_measure, threshold required/bounded/numeric, only "above", single hour rejected for analyses, request summary with threshold; calendar month: leap years (2024-02-29, 2023-02-28, 2100-02-28), 31-day month passes the ≤ 31-day rule, current month clipped to now + 12 h, future months rejected, months before 2019 rejected, single-available-day case** | 46 |
+| `test_responses.py` | envelopes, HTTP classification, `details.message`, terminal states, result extraction, measures, NULL values, stats keys, usage endpoint; **schema detection (temperature / aggregate / value / none), real cached exceedance + persistence samples (`tests/fixtures/real_*_sample.json`, MIT), zero duration counted as valid, all-missing case, midnight (0) peak hour valid and tie-breaking, out-of-range hours flagged, analysis stats tolerant of junk** | 31 |
+| `test_polling.py` | polling policy | 7 |
+| `test_qgis_geometry.py` | selection rules, EPSG:3857→4326 with holes, MultiPolygon, invalid geometry | 6 |
+| `test_qgis_output_styling.py` | tcm save/load/style/restyle/persistence; **exceedance legend in `h` with 0 in the first class and threshold in the layer name and custom properties, persistence legend, peak-time six fixed clock classes `00:00 - 03:59 UTC` … `20:00 - 23:59 UTC`, file prefixes per analysis, temperature style unchanged** | 11 |
+| `test_qgis_job.py` | real `QgsNetworkAccessManager` against a scripted server, usage endpoint, demo client | 16 |
+| `test_qgis_dialog_demo.py` | plugin lifecycle, tcm Demo Mode (single hour + daily), defaults, environment switch, credits check; **four analysis choices with explanations, threshold shown only for exceedance/persistence (default 35 °C), measure combo disabled for analyses, Single hour disabled for analyses with an explanation and automatic switch to Single day, calendar month → `filter_type 4` with first/last day, exceedance demo layer + summary (% of valid tiles, maximum, valid count), peak-time demo layer + UTC summary, three results become three separate layers** | 15 |
+| `test_qgis_credentials.py` | `mask()`; encrypted store (opt-in, **skipped** headless) | 2 |
 
 ## 2. Checks inside the real QGIS application – executed
 
 | Script | What it proved | Evidence |
 |--------|----------------|----------|
-| `scripts/qgis_gui_check.py` (Demo Mode only) | install/load via `qgis.utils`, toolbar action with icon, dialog, EPSG:3857 demo AOI, Generate disabled while active, demo layer labelled `[DEMO - synthetic]`, 7-class °C style, screenshot, project save/clear/reopen resolves the layer, clean unload | `dist/gui_check_report.json`, `dist/gui_check_canvas.png` (run after the 0.1.0 changes; rerun pending for 0.2.0 UI, see §4) |
-| `scripts/qgis_render_result.py` | the first live result (150 tiles) loads and styles through the plugin's output/styling modules | `dist/render_result_report.json`, `dist/render_result_canvas.png` |
-| **`scripts/qgis_live_dialog_check.py` – real request through the dialog** (2026-10-13 10:00) | see §3 | `dist/live_dialog_report.json`, `dist/live_dialog_screenshot.png`, `dist/live_dialog_canvas.png` |
+| `scripts/qgis_gui_check.py` (Demo Mode, 0.3.0 dialog) | install/load, toolbar icon, dialog, EPSG:3857 demo AOI, tcm demo layer styled, screenshot, project save/clear/reopen, **exceedance demo pass: threshold visible, layer "Exceedance hours … above 35 °C", legend in h, summary "31.5% of valid tiles (57) have more than 0 h above 35 °C; maximum 34.8 h; 1 missing"**, clean unload | `dist/gui_check_report.json`, `dist/gui_check_canvas.png` |
+| `scripts/qgis_live_dialog_check.py` (0.2.0, real tcm request through the dialog) | confirmation box, submission, polling, 150 real tiles, styling, file without key, project reopen | `dist/live_dialog_report.json`, `dist/live_dialog_screenshot.png` |
+| `scripts/qgis_render_result.py` | **real live exceedance result** loads and styles through the plugin's output/styling code: 7 classes `1.0 - 1.7 h … 5.3 - 6.0 h`, API stats shown | `dist/render_result_report.json`, `dist/render_result_exceedance_canvas.png` |
 
-## 3. Real API validation – executed
+## 3. Real API validation – executed (development environment, dev key)
 
-Authorisation: Mustafa approved one single-day request on 2026-10-13 and then
-instructed completion of the dialog test with the same development key. Key
-source: `~/.config/fortyguard/api_key` (owner-only), never printed.
+| Request | Result |
+|---------|--------|
+| tcm, filter 3 (single day), 2024-07-15, 100 m – headless client | Completed, 150 tiles, aggregate fields, °C (0.2.0) |
+| tcm, filter 1 (single hour 14:00) – **through the dialog** | Completed, 150 tiles, aggregate fields (no `temperature` field), °C (0.2.0) |
+| **exceedance**, filter 4 2024-07-15…21, threshold 35 °C above – plugin client (`scripts/live_check.py`) | **Completed** (`d0439dfd-…`), 150 Polygon tiles, schema `value`, 0.98–6.03 h, mean 2.46, `stats_data.units = hour`, saved as `fortyguard_exceedance_…_above35_C_….geojson`; rendered in QGIS (see §2) |
+| **persistence**, same window and threshold – plugin client | **Completed** (`c9836df7-…`), 150 tiles, `value` 0.87–1.50 h, `units = hour` |
+| **time_of_measure**, same window – plugin client | **Completed** (`a6f5d9ef-…`), 150 tiles, `value` = 14 for every tile, `units = hour`; summary "most common peak hour 14:00 UTC (150 of 150)". Whether 14 is UTC or local cannot be decided from this sample (open question 8 in `docs/API_CONTRACT.md`). |
+| Credits | 5 completed requests so far on the dev key (Premium rate 4,220 each) |
 
-| Check | Result |
-|-------|--------|
-| Environment / key match | The supplied key is a **development** key: production `api.fortyguard.com` answers `401 Invalid or unknown API key`; `tos-enterprise-api.dev.app.fortyguard.com` accepts it. Both live runs used the development environment. **Production was not exercised with a valid key.** |
-| Credits check through the dialog (`Check key and credits`) | HTTP 200: Plan Premium (One-Time), key active, 995,780 of 1,000,000 credits remaining, key expires 2026-10-19T14:36:30Z |
-| Request 1 – headless `scripts/live_check.py`, filter 3 (single day), 2024-07-15, 100 m | Completed in ~23 s, activity `dcdb57e7-…`, 150 Polygon tiles, `average/min/max_temperature` 24.5–34.4 °C, stats keys lower-case, 4,220 credits charged |
-| Request 2 – **through the plugin dialog**, filter 1 (single hour 14:00), 2024-07-15, 100 m | Confirmation box shown and accepted; submission → activity `69a66823-…`; status polling Processing ×6 then Completed (~20 s); real GeoJSON saved to `~/Documents/FortyGuard Heatmaps/fortyguard_tcm_2024-07-1514_00_100m_69a66823_20261013_100034.geojson` + `.meta.json` (no key, `demo=false`); layer added, **not** labelled demo; field `average_temperature` type Real, 31.887–33.142; graduated renderer 7 classes with °C labels; API stats shown (min 31.89, max 33.14, mean 32.26, sd 0.41); key absent from log and status; project saved, cleared and reopened with the layer valid |
-| Schema note | The hourly request returned `average_temperature = min_temperature = max_temperature` per tile and **no `temperature` field**, contrary to the documentation. The plugin's field auto-detection handled it. |
-| Production usage endpoint | HTTP 500 `Unable to fetch API key usage.` for the development key (expected for a key unknown to production, but the status code is unhelpful; reported in `docs/API_CONTRACT.md`). |
-
-Demo Mode success is **not** counted as API validation; the two requests above are.
+The three analyses were verified through the plugin's client/job/output code
+(`scripts/live_check.py`), **not through the dialog click path** (only the tcm
+request used the dialog live). The dialog path for analyses was exercised with
+synthetic fixtures in the offscreen suite and the in-app check.
 
 ## 4. Pending / not executed
 
 | Item | Why | How |
 |------|-----|-----|
-| Production environment end to end | No production key available. | Obtain a production key, run `scripts/qgis_live_dialog_check.py` with `FG_ENV=prod` (spends credits). |
-| Filter types 2 and 4, 60 m / 80 m, 429 behaviour | Not authorised (each completed request costs credits). | `scripts/live_check.py --filter 2 …` etc. |
-| Windows and Linux | No machine available. | Install the ZIP on each, run `scripts/run_tests.sh` and the in-app Demo check. |
-| QGIS 4 / Qt 6 | Not installed; `qgisMaximumVersion=3.99` on purpose. | Install a QGIS 4 build, run tests, then raise the maximum version. |
-| Encrypted key storage (auth DB) | Headless test skipped; code is guarded. | In QGIS: Save key → restart → Load saved key (master-password prompt). |
-| 0.2.0 UI re-run of `qgis_gui_check.py` | The 0.2.0 dialog was exercised by the offscreen suite (9 tests) and by the real dialog run; the Demo-only in-app script was last run on 0.1.0. | `QGIS --code scripts/qgis_gui_check.py` |
-| plugins.qgis.org security scan and approval | Not uploaded (publisher details and public repository missing, see `docs/PUBLISHING.md`). | After upload, read the Security tab and the approval e-mail. |
+| Analyses through the dialog click path live | Not authorised (each request costs credits); same code path verified with fixtures and the tcm live dialog run. | `FG_ENV=dev FG_FILTER=4 …` extension of `scripts/qgis_live_dialog_check.py` or a manual run. |
+| Filter type 2 (range of hours) and filter 3 with an analysis; calendar month live | Not authorised. | `scripts/live_check.py --analytic exceedance --filter 2 …` |
+| Peak-time time zone (UTC vs local) | Needs FortyGuard confirmation; uniform live sample. | Ask the API team; if local, change `contract.PEAK_TIME_TZ` and labels. |
+| Production environment | Development key only. | Production key. |
+| Windows, Linux, QGIS 4 | Not available. | Install the ZIP there and run `scripts/run_tests.sh` + the in-app checks. |
+| Encrypted key storage headless | Skipped (keychain); guarded code. | In QGIS: Save key → restart → Load saved key. |
+| plugins.qgis.org upload, scan, approval | No OSGeo ID yet. | See `docs/SUBMISSION.md`. |

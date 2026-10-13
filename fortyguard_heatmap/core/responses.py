@@ -262,6 +262,105 @@ def available_measures(map_data):
     return [m for m in contract.MEASURE_PRIORITY if m in found]
 
 
+def result_schema(map_data):
+    """Classify the tile schema: 'temperature', 'aggregate', 'value' or None.
+
+    Checked on the actual features, never assumed from the request.
+    """
+    feats = map_data.get("features") or []
+    has = {"value": False, "temperature": False, "aggregate": False}
+    for f in feats:
+        props = f.get("properties") if isinstance(f, dict) else None
+        if not isinstance(props, dict):
+            continue
+        if _is_number(props.get(contract.FIELD_VALUE)):
+            has["value"] = True
+        if _is_number(props.get(contract.FIELD_TEMPERATURE)):
+            has["temperature"] = True
+        if any(_is_number(props.get(k)) for k in (contract.FIELD_AVERAGE, contract.FIELD_MIN, contract.FIELD_MAX)):
+            has["aggregate"] = True
+        if all(has.values()):
+            break
+    if has["value"] and not (has["temperature"] or has["aggregate"]):
+        return "value"
+    if has["temperature"]:
+        return "temperature"
+    if has["aggregate"]:
+        return "aggregate"
+    if has["value"]:
+        return "value"
+    return None
+
+
+def analysis_stats(stats_data):
+    """Return documented analysis stats {analytic_type, units, n_cells, min, max, mean} (lower-case keys)."""
+    if not isinstance(stats_data, dict):
+        return {}
+    out = {}
+    for k, v in stats_data.items():
+        if not isinstance(k, str):
+            continue
+        lk = k.lower()
+        if lk in ("analytic_type", "units") and isinstance(v, str):
+            out[lk] = v
+        elif lk in ("n_cells", "min", "max", "mean") and _is_number(v):
+            out[lk] = float(v) if lk != "n_cells" else int(v)
+    return out
+
+
+def duration_summary(map_data, field=contract.FIELD_VALUE):
+    """Summary for exceedance/persistence: valid tiles, tiles with a positive duration, max.
+
+    Zero is a valid result (no hours above the threshold), not missing data.
+    Percentages are of valid TILES, not of geographic area.
+    """
+    base = numeric_summary(map_data, field)
+    feats = map_data.get("features") or []
+    positive = 0
+    for f in feats:
+        props = f.get("properties") if isinstance(f, dict) else {}
+        v = props.get(field) if isinstance(props, dict) else None
+        if _is_number(v) and v > 0:
+            positive += 1
+    base["positive"] = positive
+    base["positive_pct_of_valid_tiles"] = (100.0 * positive / base["count"]) if base["count"] else None
+    return base
+
+
+def peak_time_summary(map_data, field=contract.FIELD_VALUE):
+    """Summary for time_of_measure: valid tiles and the most common peak hour (0-23).
+
+    00:00 (value 0) is a valid peak hour. Values are rounded to the nearest whole
+    hour for the histogram; out-of-range values are reported as invalid.
+    """
+    feats = map_data.get("features") or []
+    counts = {}
+    missing = 0
+    invalid = 0
+    for f in feats:
+        props = f.get("properties") if isinstance(f, dict) else {}
+        v = props.get(field) if isinstance(props, dict) else None
+        if not _is_number(v):
+            missing += 1
+            continue
+        h = int(round(float(v)))
+        if 0 <= h <= 23:
+            counts[h] = counts.get(h, 0) + 1
+        else:
+            invalid += 1
+    valid = sum(counts.values())
+    mode_hour = None
+    if counts:
+        best = max(counts.values())
+        mode_hour = min(h for h, c in counts.items() if c == best)  # earliest hour on ties
+    return {"count": valid, "missing": missing, "invalid": invalid, "mode_hour": mode_hour,
+            "mode_count": counts.get(mode_hour, 0) if mode_hour is not None else 0, "histogram": counts}
+
+
+def format_hour_of_day(hour):
+    return "%02d:00 %s" % (int(hour), contract.PEAK_TIME_TZ)
+
+
 def numeric_summary(map_data, field):
     """Return dict(count, missing, min, max, mean) for a field, counting nonnumeric as missing."""
     feats = map_data.get("features") or []

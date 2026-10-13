@@ -220,3 +220,118 @@ class DialogDemoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(qgis_env.qgis_available(), "QGIS runtime not available")
+class DialogAnalysisTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="fg_dialog_ana_")
+        QgsProject.instance().clear()
+        self.iface = FakeIface()
+        self.dlg = HeatmapDialog(self.iface)
+        self.dlg.output_dir.setFilePath(self.tmp)
+        self.dlg.demo_check.setChecked(True)
+        self.dlg.demo_aoi_btn.click()
+
+    def tearDown(self):
+        self.dlg.shutdown()
+        QgsProject.instance().clear()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _select(self, analytic):
+        self.dlg.analysis_combo.setCurrentIndex(self.dlg.analysis_combo.findData(analytic))
+
+    def _run(self):
+        before = set(QgsProject.instance().mapLayers())
+        done = {"done": False}
+        self.dlg.generate_btn.click()
+        self.assertTrue(self.dlg.job is not None and self.dlg.job.is_active)
+        self.dlg.job.completed.connect(lambda *a: done.__setitem__("done", True))
+        self.dlg.job.failed.connect(lambda *a: done.__setitem__("done", True))
+        self.assertTrue(pump(done), "demo job did not finish")
+        pump({"done": False}, 200)
+        new = set(QgsProject.instance().mapLayers()) - before
+        self.assertEqual(len(new), 1, self.dlg.log.toPlainText()[-800:])
+        return QgsProject.instance().mapLayer(new.pop())
+
+    def test_four_choices_with_explanations_and_conditional_threshold(self):
+        self.assertEqual([self.dlg.analysis_combo.itemData(i) for i in range(self.dlg.analysis_combo.count())],
+                         ["tcm", "exceedance", "persistence", "time_of_measure"])
+        self.assertFalse(self.dlg.threshold_spin.isVisibleTo(self.dlg))
+        self.assertIn("Temperature across", self.dlg.analysis_help.text())
+        self._select("exceedance")
+        self.assertTrue(self.dlg.threshold_spin.isVisibleTo(self.dlg))
+        self.assertEqual(self.dlg.threshold_spin.value(), 35.0)
+        self.assertIn("Total hours above", self.dlg.analysis_help.text())
+        self.assertIn("longest unbroken", self.dlg.threshold_help.text())
+        self._select("time_of_measure")
+        self.assertFalse(self.dlg.threshold_spin.isVisibleTo(self.dlg))
+        self.assertIn("UTC", self.dlg.analysis_help.text())
+        self.assertFalse(self.dlg.measure_combo.isEnabled())
+        self._select("tcm")
+        self.assertTrue(self.dlg.measure_combo.isEnabled())
+
+    def test_single_hour_disabled_for_analyses_with_explanation(self):
+        self.dlg.filter_combo.setCurrentIndex(self.dlg.filter_combo.findData(contract.FILTER_SINGLE_HOUR))
+        self._select("persistence")
+        self.assertEqual(self.dlg.filter_combo.currentData(), contract.FILTER_SINGLE_DAY)
+        self.assertIn("changed from 'Single hour' to 'Single day'", self.dlg.log.toPlainText())
+        model = self.dlg.filter_combo.model()
+        self.assertFalse(model.item(self.dlg.filter_combo.findData(contract.FILTER_SINGLE_HOUR)).isEnabled())
+        self._select("tcm")
+        self.assertTrue(model.item(self.dlg.filter_combo.findData(contract.FILTER_SINGLE_HOUR)).isEnabled())
+
+    def test_calendar_month_builds_filter_4(self):
+        from qgis.PyQt.QtCore import QDate
+        self.dlg.filter_combo.setCurrentIndex(self.dlg.filter_combo.findData("month"))
+        self.assertTrue(self.dlg.month_edit.isVisibleTo(self.dlg))
+        self.assertFalse(self.dlg.start_date.isVisibleTo(self.dlg))
+        self.dlg.month_edit.setDate(QDate(2024, 2, 10))
+        self._select("exceedance")
+        body, aoi = self.dlg._collect_inputs()
+        self.assertEqual(body["date_time"], {"start_date": "2024-02-01", "filter_type": 4, "end_date": "2024-02-29"})
+        self.assertEqual(body["analytic_type"], "exceedance")
+        self.assertEqual(body["threshold"], 35.0)
+        self.assertEqual(body["direction"], "above")
+
+    def test_exceedance_demo_layer_and_summary(self):
+        self._select("exceedance")
+        self.dlg.threshold_spin.setValue(35.0)
+        lyr = self._run()
+        self.assertTrue(lyr.name().startswith("[DEMO - synthetic] FortyGuard Exceedance hours"))
+        self.assertIn("above 35 °C", lyr.name())
+        self.assertEqual(lyr.renderer().classAttribute(), "value")
+        self.assertTrue(all(r.label().endswith(" h") for r in lyr.renderer().ranges()))
+        text = self.dlg.stats_label.text()
+        self.assertIn("% of valid tiles", text)
+        self.assertIn("maximum", text)
+        self.assertIn("181 valid tiles", text)
+        self.assertIn("SYNTHETIC", text)
+        self.assertIn("Exceedance (hours)", self.dlg.log.toPlainText())
+        files = [f for f in os.listdir(self.tmp) if f.endswith(".geojson")]
+        self.assertTrue(files[0].startswith("fortyguard_DEMO_exceedance_"))
+
+    def test_peak_time_demo_layer_and_summary(self):
+        self._select("time_of_measure")
+        self.dlg.filter_combo.setCurrentIndex(self.dlg.filter_combo.findData(contract.FILTER_RANGE_OF_DAYS))
+        self.dlg.start_date.setDate(self.dlg.start_date.date().addDays(-7))
+        lyr = self._run()
+        self.assertIn("Peak temperature time hour of day (UTC)", lyr.name())
+        labels = [r.label() for r in lyr.renderer().ranges()]
+        self.assertEqual(labels[0], "00:00 - 03:59 UTC")
+        text = self.dlg.stats_label.text()
+        self.assertIn("most common peak hour", text)
+        self.assertIn("UTC", text)
+        self.assertIn("not converted", text)
+
+    def test_results_are_separate_layers(self):
+        self._select("exceedance")
+        a = self._run()
+        self._select("persistence")
+        b = self._run()
+        self._select("tcm")
+        c = self._run()
+        self.assertEqual(len({a.id(), b.id(), c.id()}), 3)
+        self.assertEqual(len(QgsProject.instance().mapLayers()), 4)  # 3 results + demo AOI
+        self.assertIn("Persistence hours", b.name())
+        self.assertIn("tcm", c.name())

@@ -40,7 +40,7 @@
       "layer_name": "[DEMO - synthetic] FortyGuard tcm mean \u00b0C | 2026-10-12 | 100 m",
       "features": 182,
       "crs": "EPSG:4326",
-      "source": "/Users/mustafahamdy/Downloads/QGIS inetgration/dist/gui_check_output/fortyguard_DEMO_2026-10-12_100m_demo-dai_20261013_100434.geojson"
+      "source": "/Users/mustafahamdy/Downloads/QGIS inetgration/dist/gui_check_output/fortyguard_DEMO_tcm_2026-10-12_100m_demo-dai_20261013_144644.geojson"
     },
     {
       "name": "styled_graduated",
@@ -55,7 +55,7 @@
     {
       "name": "stats_shown",
       "ok": true,
-      "text": "API stats_data (\u00b0C): min 20.81, max 28.67, mean 24.26, sd 1.85\nTiles 'average_temperature': 182 values, min 20.81, max 28.67, mean 24.26 \u00b0C; 0 missing\nSYNTHETIC DEMO DATA - not a FortyGuard analysis."
+      "text": "API stats_data (\u00b0C): min 20.81, max 28.67, mean 24.26, sd 1.85\nMeasure 'average_temperature': 182 valid tiles, range 20.81 to 28.67 \u00b0C (mean 24.26); 0 missing\nSYNTHETIC DEMO DATA - not a FortyGuard analysis."
     },
     {
       "name": "canvas_screenshot",
@@ -75,12 +75,23 @@
       ]
     },
     {
+      "name": "exceedance_demo_started",
+      "ok": true,
+      "threshold_visible": true
+    },
+    {
+      "name": "exceedance_demo_layer",
+      "ok": true,
+      "layer_name": "[DEMO - synthetic] FortyGuard Exceedance hours | 2026-10-12 | 100 m | above 35 \u00b0C",
+      "stats": "Exceedance: 181 valid tiles; 31.5% of valid tiles (57) have more than 0 h above 35 \u00b0C; maximum 34.8 h; 1 missing\nAPI stats_data: units hour, n_cells 181, min 0.00, max 34.84, mean 4.63\nSYNTHETIC DEMO DATA - not a FortyGuard analysis."
+    },
+    {
       "name": "unload",
       "ok": true
     }
   ],
   "ok": true,
-  "started": "2026-10-13 10:04:20",
+  "started": "2026-10-13 14:46:30",
   "qgis_version": "3.44.15-Solothurn",
-  "finished": "2026-10-13 10:04:36"
+  "finished": "2026-10-13 14:46:58"
 }

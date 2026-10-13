@@ -12,9 +12,10 @@ import os
 from qgis.PyQt.QtCore import QDate, QTime, Qt, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import (
-    QCheckBox, QComboBox, QDateEdit, QDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QSpinBox, QTimeEdit, QVBoxLayout,
+    QCheckBox, QComboBox, QDateEdit, QDialog, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
+    QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QSpinBox, QTimeEdit, QVBoxLayout,
 )
+from qgis.PyQt.QtGui import QStandardItemModel
 from qgis.core import (
     QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsFeature, QgsGeometry, QgsMapLayerProxyModel,
     QgsMessageLog, QgsProject, QgsSettings, QgsVectorLayer, Qgis,
@@ -31,6 +32,7 @@ from ..core.responses import ApiError
 LOG_TAG = "FortyGuard Heatmap"
 SETTING_MEASURE = "fortyguard_heatmap/preferred_measure"
 SETTING_DEADLINE = "fortyguard_heatmap/deadline_minutes"
+FILTER_MONTH = "month"  # UI-only choice; submitted as filter_type 4 with the month's first/last dates
 
 MEASURE_CHOICES = (
     (contract.FIELD_AVERAGE, "Mean (average_temperature)"),
@@ -79,10 +81,13 @@ class HeatmapDialog(QDialog):
         self.last_request_summary = ""
         self.last_demo = False
         self.last_activity_id = ""
+        self.last_analytic_type = contract.ANALYTIC_TYPE_TCM
+        self.last_threshold = None
         self._connected_layer = None
 
         self._build_ui()
         self._wire()
+        self._on_analysis_changed()
         self._on_filter_changed()
         self._on_demo_toggled(self.demo_check.isChecked())
         self._refresh_selection_info()
@@ -150,6 +155,33 @@ class HeatmapDialog(QDialog):
         f.addRow("", self.demo_aoi_btn)
         root.addWidget(area)
 
+        # --- Analysis
+        ana = QGroupBox("Analysis")
+        f = QFormLayout(ana)
+        self.analysis_combo = QComboBox()
+        for at in contract.ANALYTIC_TYPES:
+            self.analysis_combo.addItem(contract.ANALYSIS_LABELS[at], at)
+        f.addRow("Analysis type", self.analysis_combo)
+        self.analysis_help = QLabel("")
+        self.analysis_help.setWordWrap(True)
+        self.analysis_help.setStyleSheet("color: #555;")
+        f.addRow("", self.analysis_help)
+        self.threshold_spin = QDoubleSpinBox()
+        self.threshold_spin.setRange(contract.THRESHOLD_MIN_C, contract.THRESHOLD_MAX_C)
+        self.threshold_spin.setDecimals(1)
+        self.threshold_spin.setSingleStep(0.5)
+        self.threshold_spin.setSuffix(" °C")
+        self.threshold_spin.setValue(contract.DEFAULT_THRESHOLD_C)
+        self.threshold_label = QLabel("Threshold (°C)")
+        f.addRow(self.threshold_label, self.threshold_spin)
+        self.threshold_help = QLabel(
+            "Exceedance = total hours above the threshold in the period (hours may be spread out). "
+            "Persistence = the longest unbroken run of hours above it. Both are sent with direction 'above'.")
+        self.threshold_help.setWordWrap(True)
+        self.threshold_help.setStyleSheet("color: #555; font-size: 11px;")
+        f.addRow("", self.threshold_help)
+        root.addWidget(ana)
+
         # --- Date/time
         when = QGroupBox("Date and time")
         f = QFormLayout(when)
@@ -157,8 +189,18 @@ class HeatmapDialog(QDialog):
         for ft in (contract.FILTER_SINGLE_HOUR, contract.FILTER_RANGE_OF_HOURS,
                    contract.FILTER_SINGLE_DAY, contract.FILTER_RANGE_OF_DAYS):
             self.filter_combo.addItem(contract.FILTER_TYPE_LABELS[ft], ft)
+        self.filter_combo.addItem("Calendar month (whole month, submitted as a range of days)", FILTER_MONTH)
         self.filter_combo.setCurrentIndex(2)  # single day: the schema verified live
         f.addRow("Filter type", self.filter_combo)
+
+        self.month_edit = QDateEdit()
+        self.month_edit.setCalendarPopup(True)
+        self.month_edit.setDisplayFormat("MMMM yyyy")
+        self.month_edit.setMinimumDate(QDate.fromString(contract.MIN_DATE_ISO, "yyyy-MM-dd"))
+        self.month_edit.setMaximumDate(QDate.currentDate().addDays(1))
+        self.month_edit.setDate(QDate(QDate.currentDate().year(), QDate.currentDate().month(), 1).addMonths(-1))
+        self.month_label = QLabel("Month")
+        f.addRow(self.month_label, self.month_edit)
 
         self.start_date = QDateEdit()
         self.start_date.setCalendarPopup(True)
@@ -313,6 +355,7 @@ class HeatmapDialog(QDialog):
         self.layer_combo.layerChanged.connect(self._on_layer_changed)
         self.demo_aoi_btn.clicked.connect(self._add_demo_aoi_layer)
         self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        self.analysis_combo.currentIndexChanged.connect(self._on_analysis_changed)
         self.generate_btn.clicked.connect(self._on_generate)
         self.stop_btn.clicked.connect(self._on_stop)
         self.resume_btn.clicked.connect(self._on_resume)
@@ -345,7 +388,8 @@ class HeatmapDialog(QDialog):
         for w in (self.key_edit, self.demo_check, self.layer_combo, self.filter_combo, self.start_date,
                   self.start_time, self.end_time, self.end_date, self.granularity_combo, self.output_dir,
                   self.output_default_btn, self.deadline_spin, self.load_key_btn, self.save_key_btn,
-                  self.forget_key_btn, self.demo_aoi_btn, self.base_url_combo, self.check_key_btn):
+                  self.forget_key_btn, self.demo_aoi_btn, self.base_url_combo, self.check_key_btn,
+                  self.analysis_combo, self.threshold_spin, self.month_edit):
             w.setEnabled(not busy)
         if not busy:
             self._on_demo_toggled(self.demo_check.isChecked())
@@ -369,15 +413,47 @@ class HeatmapDialog(QDialog):
             self.log_line("API environment: %s" % self.base_url)
         self.usage_label.setText("Not checked yet.")
 
+    @property
+    def analytic_type(self):
+        return self.analysis_combo.currentData()
+
+    def _set_filter_item_enabled(self, filter_type, enabled):
+        model = self.filter_combo.model()
+        if isinstance(model, QStandardItemModel):
+            item = model.item(self.filter_combo.findData(filter_type))
+            if item is not None:
+                item.setEnabled(enabled)
+
+    def _on_analysis_changed(self, *_args):
+        at = self.analytic_type
+        self.analysis_help.setText(contract.ANALYSIS_EXPLANATIONS[at])
+        needs_threshold = at in contract.THRESHOLD_TYPES
+        self.threshold_spin.setVisible(needs_threshold)
+        self.threshold_label.setVisible(needs_threshold)
+        self.threshold_help.setVisible(needs_threshold)
+        is_tcm = at == contract.ANALYTIC_TYPE_TCM
+        self.measure_combo.setEnabled(is_tcm)
+        # Single hour is only meaningful for the temperature snapshot (as in the Forma extension).
+        self._set_filter_item_enabled(contract.FILTER_SINGLE_HOUR, is_tcm)
+        if not is_tcm and self.filter_combo.currentData() == contract.FILTER_SINGLE_HOUR:
+            self.filter_combo.setCurrentIndex(self.filter_combo.findData(contract.FILTER_SINGLE_DAY))
+            msg = ("%s needs a time window, so the filter type was changed from 'Single hour' to 'Single day'."
+                   % contract.ANALYSIS_LABELS[at])
+            self.log_line(msg, Qgis.Warning)
+            self.status_label.setText(msg)
+
     def _on_filter_changed(self):
         ft = self.filter_combo.currentData()
         show_start_time = ft in (contract.FILTER_SINGLE_HOUR, contract.FILTER_RANGE_OF_HOURS)
         show_end_time = ft == contract.FILTER_RANGE_OF_HOURS
         show_end_date = ft == contract.FILTER_RANGE_OF_DAYS
+        show_month = ft == FILTER_MONTH
         self.start_time.setVisible(show_start_time); self.start_time_label.setVisible(show_start_time)
         self.end_time.setVisible(show_end_time); self.end_time_label.setVisible(show_end_time)
         self.end_date.setVisible(show_end_date); self.end_date_label.setVisible(show_end_date)
-        aggregate = ft in (contract.FILTER_SINGLE_DAY, contract.FILTER_RANGE_OF_DAYS)
+        self.month_edit.setVisible(show_month); self.month_label.setVisible(show_month)
+        self.start_date.setVisible(not show_month)
+        aggregate = ft in (contract.FILTER_SINGLE_DAY, contract.FILTER_RANGE_OF_DAYS, FILTER_MONTH)
         self.measure_combo.setToolTip("Used when the result contains average/min/max fields (daily outputs)."
                                       if aggregate else "Hourly outputs carry a single 'temperature' field; "
                                                         "this choice applies only to daily outputs.")
@@ -491,12 +567,21 @@ class HeatmapDialog(QDialog):
         layer = self.layer_combo.currentLayer()
         aoi = geometry.prepare_aoi(layer)
         ft = self.filter_combo.currentData()
+        start_date = self.start_date.date().toString("yyyy-MM-dd")
+        end_date = self.end_date.date().toString("yyyy-MM-dd")
+        if ft == FILTER_MONTH:
+            start_date, end_date = payload.month_range(self.month_edit.date().year(), self.month_edit.date().month())
+            ft = contract.FILTER_RANGE_OF_DAYS
+        at = self.analytic_type
         body = payload.build_payload(
-            aoi.geometry_geojson, ft, self.start_date.date().toString("yyyy-MM-dd"),
+            aoi.geometry_geojson, ft, start_date,
             self.granularity_combo.currentData(),
             start_time=self.start_time.time().toString("HH:mm"),
             end_time=self.end_time.time().toString("HH:mm"),
-            end_date=self.end_date.date().toString("yyyy-MM-dd"),
+            end_date=end_date,
+            analytic_type=at,
+            threshold=self.threshold_spin.value() if at in contract.THRESHOLD_TYPES else None,
+            direction=contract.DIRECTION_ABOVE if at in contract.THRESHOLD_TYPES else None,
         )
         output.ensure_dir(self.output_dir.filePath())
         return body, aoi
@@ -512,16 +597,21 @@ class HeatmapDialog(QDialog):
             return
 
         self.last_request_summary = payload.describe_request(body)
+        self.last_analytic_type = body["analytic_type"]
+        self.last_threshold = body.get("threshold")
         self.last_demo = demo_mode
+        analysis_label = "%s (%s)" % (contract.ANALYSIS_LABELS[self.last_analytic_type],
+                                      output.unit_label(self.last_analytic_type))
         self.last_map_data = None
         self.last_stats = None
         self.stats_label.setText("-")
         self.activity_label.setText("")
 
         if demo_mode:
-            fixture = demo.fixture_for_filter(body["date_time"]["filter_type"])
+            fixture = demo.fixture_for_request(body["analytic_type"], body["date_time"]["filter_type"])
             self.client = DemoApiClient(fixture, parent=self)
-            self.log_line("DEMO MODE: replaying synthetic fixture '%s'. No request is sent to FortyGuard." % fixture)
+            self.log_line("DEMO MODE: %s - replaying synthetic fixture '%s'. No request is sent to FortyGuard."
+                          % (analysis_label, fixture))
         else:
             key = self._current_key()
             if not key:
@@ -530,18 +620,19 @@ class HeatmapDialog(QDialog):
             base_url = self.base_url
             msg = ("Submit a live FortyGuard request?\n\n"
                    "Environment: %s\n"
+                   "Analysis: %s\n"
                    "Area: feature %s of '%s' (~%.2f km² / %.2f mi²)\n"
-                   "Request: %s (filter type %d, tcm)\n\n"
+                   "Request: %s (filter type %d)\n\n"
                    "A completed request consumes credits from your plan (documented: 3,500 on API Basic/Startup, "
                    "4,220 on API Premium). Coverage is documented as United States only.\n\nContinue?"
-                   % (base_url, aoi.feature_id, aoi.layer_name, aoi.area_sq_km, aoi.area_sq_mi,
+                   % (base_url, analysis_label, aoi.feature_id, aoi.layer_name, aoi.area_sq_km, aoi.area_sq_mi,
                       self.last_request_summary, body["date_time"]["filter_type"]))
             if self._confirm("Confirm live request", msg) is not True:
                 return
             self.client = HeatmapApiClient(key, base_url=base_url, parent=self)
-            self.log_line("Submitting live request to %s: %s (area ~%.2f km², source CRS %s, key %s)."
-                          % (base_url, self.last_request_summary, aoi.area_sq_km, aoi.source_crs_authid,
-                             credentials.mask(key)))
+            self.log_line("Submitting live %s request to %s: %s (area ~%.2f km², source CRS %s, key %s)."
+                          % (analysis_label, base_url, self.last_request_summary, aoi.area_sq_km,
+                             aoi.source_crs_authid, credentials.mask(key)))
 
         self._start_job(body)
 
@@ -611,23 +702,42 @@ class HeatmapDialog(QDialog):
     def _on_completed(self, map_data, stats_data):
         self.last_map_data = map_data
         self.last_stats = stats_data
+        at = self.last_analytic_type
+        unit_kind = contract.UNIT_KIND.get(at, "celsius")
         try:
-            measures = responses.available_measures(map_data)
-            if not measures:
-                raise ApiError("The result has no numeric temperature field (%s). Nothing was styled."
-                               % ", ".join(contract.MEASURE_PRIORITY), kind="malformed")
-            measure = self._choose_measure(measures)
+            schema = responses.result_schema(map_data)
+            if at == contract.ANALYTIC_TYPE_TCM:
+                measures = responses.available_measures(map_data)
+                if not measures:
+                    raise ApiError("The temperature result has no numeric temperature field (%s). Nothing was styled."
+                                   % ", ".join(contract.MEASURE_PRIORITY), kind="malformed")
+                measure = self._choose_measure(measures)
+            else:
+                if schema != "value":
+                    raise ApiError("The %s result does not use the expected 'value' field (detected schema: %s). "
+                                   "Nothing was styled; the raw GeoJSON was still saved."
+                                   % (contract.ANALYSIS_LABELS[at], schema or "no numeric field"), kind="malformed")
+                measure = contract.FIELD_VALUE
+                api_stats = responses.analysis_stats(stats_data)
+                if api_stats.get("units") and api_stats["units"].lower() != "hour":
+                    self.log_line("stats_data.units is '%s' (expected 'hour'); legend labels assume hours."
+                                  % api_stats["units"], Qgis.Warning)
+                if api_stats.get("analytic_type") and api_stats["analytic_type"] != at:
+                    self.log_line("stats_data.analytic_type is '%s' but '%s' was requested."
+                                  % (api_stats["analytic_type"], at), Qgis.Warning)
             activity_id = self.job.activity_id if self.job else ""
             gpath, mpath = output.save_result(self.output_dir.filePath(), map_data, stats_data,
-                                              self.last_request_summary, activity_id, demo=self.last_demo)
+                                              self.last_request_summary, activity_id, demo=self.last_demo,
+                                              analytic_type=at)
             self.log_line("Saved result to %s" % gpath)
-            name = output.layer_name(measure, self.last_request_summary, demo=self.last_demo)
-            layer = output.load_layer(gpath, name, measure, self.last_request_summary, activity_id, demo=self.last_demo)
-            n = styling.apply_temperature_style(layer, measure)
+            name = output.layer_name(measure, self.last_request_summary, demo=self.last_demo, analytic_type=at)
+            layer = output.load_layer(gpath, name, measure, self.last_request_summary, activity_id,
+                                      demo=self.last_demo, analytic_type=at, threshold=self.last_threshold)
+            n = styling.apply_analysis_style(layer, measure, unit_kind)
             self.last_layer = layer
             summary = responses.numeric_summary(map_data, measure)
-            self.log_line("Added layer '%s' (%d tiles, %d classes on '%s'; %d tiles without a value)."
-                          % (name, layer.featureCount(), n, measure, summary["missing"]))
+            self.log_line("Added layer '%s' (%d tiles, %d classes on '%s' in %s; %d tiles without a value)."
+                          % (name, layer.featureCount(), n, measure, output.unit_label(at), summary["missing"]))
             self._show_stats(stats_data, measure, summary)
             self.status_label.setText("Completed - layer added" + (" (DEMO, synthetic)" if self.last_demo else ""))
             if self.iface:
@@ -654,6 +764,9 @@ class HeatmapDialog(QDialog):
     def _on_restyle(self):
         if self.last_layer is None or self.last_map_data is None:
             return
+        if self.last_analytic_type != contract.ANALYTIC_TYPE_TCM:
+            self.log_line("Restyle with another measure applies to temperature layers only.", Qgis.Warning)
+            return
         try:
             if self.last_layer.id() not in QgsProject.instance().mapLayers():
                 raise ApiError("The last layer is no longer in the project.", kind="malformed")
@@ -669,16 +782,46 @@ class HeatmapDialog(QDialog):
 
     def _show_stats(self, stats_data, measure, summary):
         parts = []
-        ts = responses.temperature_stats(stats_data)
-        if ts:
-            parts.append("API stats_data (%s): min %.2f, max %.2f, mean %.2f%s" % (
-                contract.TCM_UNIT, ts.get("minimum", float("nan")), ts.get("maximum", float("nan")),
-                ts.get("mean", float("nan")),
-                (", sd %.2f" % ts["standard_deviation"]) if "standard_deviation" in ts else ""))
-        if summary["count"]:
-            parts.append("Tiles '%s': %d values, min %.2f, max %.2f, mean %.2f %s; %d missing" % (
-                measure, summary["count"], summary["min"], summary["max"], summary["mean"], contract.TCM_UNIT,
-                summary["missing"]))
+        at = self.last_analytic_type
+        kind = contract.UNIT_KIND.get(at, "celsius")
+        md = self.last_map_data or {"features": []}
+        if kind == "celsius":
+            ts = responses.temperature_stats(stats_data)
+            if ts:
+                parts.append("API stats_data (%s): min %.2f, max %.2f, mean %.2f%s" % (
+                    contract.TCM_UNIT, ts.get("minimum", float("nan")), ts.get("maximum", float("nan")),
+                    ts.get("mean", float("nan")),
+                    (", sd %.2f" % ts["standard_deviation"]) if "standard_deviation" in ts else ""))
+            if summary["count"]:
+                parts.append("Measure '%s': %d valid tiles, range %.2f to %.2f %s (mean %.2f); %d missing" % (
+                    measure, summary["count"], summary["min"], summary["max"], contract.TCM_UNIT, summary["mean"],
+                    summary["missing"]))
+        elif kind == "hours":
+            d = responses.duration_summary(md, measure)
+            api = responses.analysis_stats(stats_data)
+            label = "above %g °C" % self.last_threshold if self.last_threshold is not None else "above threshold"
+            if d["count"]:
+                parts.append("%s: %d valid tiles; %.1f%% of valid tiles (%d) have more than 0 h %s; "
+                             "maximum %.1f h%s; %d missing"
+                             % (contract.ANALYSIS_LABELS[at], d["count"], d["positive_pct_of_valid_tiles"], d["positive"],
+                                label, d["max"], " (longest continuous run)" if at == contract.ANALYTIC_TYPE_PERSISTENCE else "",
+                                d["missing"]))
+            if api:
+                parts.append("API stats_data: %s" % ", ".join(
+                    "%s %s" % (k, ("%.2f" % v) if isinstance(v, float) else v)
+                    for k, v in api.items() if k in ("n_cells", "min", "max", "mean", "units")))
+        elif kind == "hour_of_day":
+            pk = responses.peak_time_summary(md, measure)
+            if pk["mode_hour"] is not None:
+                parts.append("Peak temperature time: most common peak hour %s (%d of %d valid tiles, %.1f%%); "
+                             "%d missing%s"
+                             % (responses.format_hour_of_day(pk["mode_hour"]), pk["mode_count"], pk["count"],
+                                100.0 * pk["mode_count"] / pk["count"], pk["missing"],
+                                ("; %d out-of-range values" % pk["invalid"]) if pk["invalid"] else ""))
+                parts.append("Hours are given in %s as documented by FortyGuard (not converted to local time)."
+                             % contract.PEAK_TIME_TZ)
+            else:
+                parts.append("Peak temperature time: no valid hour values.")
         if self.last_demo:
             parts.append("SYNTHETIC DEMO DATA - not a FortyGuard analysis.")
         self.stats_label.setText("\n".join(parts) if parts else "No statistics available.")

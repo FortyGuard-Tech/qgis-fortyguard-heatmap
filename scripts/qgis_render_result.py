@@ -42,7 +42,7 @@ def finish(ok):
 
 def main():
     try:
-        from fortyguard_heatmap.core import output, responses, styling
+        from fortyguard_heatmap.core import contract, output, responses, styling
         path = os.environ.get("FG_RESULT")
         if not path or not os.path.isfile(path):
             step("result_file", False, path=path)
@@ -50,20 +50,23 @@ def main():
         with open(path, "r", encoding="utf-8") as fh:
             map_data = json.load(fh)
         responses.validate_map_data(map_data)
-        measures = responses.available_measures(map_data)
-        step("validated", True, features=len(map_data["features"]), measures=measures)
         meta_path = os.path.splitext(path)[0] + ".meta.json"
         meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+        analytic = meta.get("analytic_type", "tcm")
+        schema = responses.result_schema(map_data)
+        measures = responses.available_measures(map_data)
+        step("validated", True, features=len(map_data["features"]), measures=measures, schema=schema, analytic=analytic)
         summary = meta.get("request_summary", "live result")
         activity = meta.get("activity_id") or ""
-        measure = measures[0]
-        layer = output.load_layer(path, output.layer_name(measure, summary), measure, summary, activity, demo=False)
-        n = styling.apply_temperature_style(layer, measure)
+        measure = measures[0] if analytic == "tcm" else "value"
+        layer = output.load_layer(path, output.layer_name(measure, summary, analytic_type=analytic), measure, summary,
+                                  activity, demo=False, analytic_type=analytic)
+        n = styling.apply_analysis_style(layer, measure, contract.UNIT_KIND.get(analytic, "celsius"))
         step("layer_loaded_styled", isinstance(layer.renderer(), QgsGraduatedSymbolRenderer),
              layer_name=layer.name(), classes=n, crs=layer.crs().authid(), features=layer.featureCount(),
              labels=[r.label() for r in layer.renderer().ranges()])
-        ts = responses.temperature_stats(meta.get("stats_data", {}))
-        step("stats", bool(ts), temperature_stats=ts)
+        ts = responses.temperature_stats(meta.get("stats_data", {})) or responses.analysis_stats(meta.get("stats_data", {}))
+        step("stats", bool(ts), stats=ts)
         iface.mapCanvas().setExtent(iface.mapCanvas().mapSettings().layerExtentToOutputExtent(layer, layer.extent()))
         iface.mapCanvas().refresh()
 
@@ -71,10 +74,10 @@ def main():
             try:
                 dist = os.path.join(_root(), "dist")
                 os.makedirs(dist, exist_ok=True)
-                shot = os.path.join(dist, "render_result_canvas.png")
+                shot = os.path.join(dist, "render_result_%s_canvas.png" % analytic)
                 iface.mapCanvas().saveAsImage(shot)
                 step("screenshot", os.path.exists(shot), path=shot)
-                proj = os.path.join(os.path.dirname(path), "live_result_project.qgz")
+                proj = os.path.join(os.path.dirname(path), "live_result_%s_project.qgz" % analytic)
                 step("project_saved", QgsProject.instance().write(proj), path=proj)
                 finish(all(s["ok"] for s in REPORT["steps"]))
             except Exception:

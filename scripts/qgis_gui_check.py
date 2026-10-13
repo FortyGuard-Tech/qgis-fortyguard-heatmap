@@ -136,9 +136,31 @@ def main():
                         layers = [l for l in QgsProject.instance().mapLayers().values() if l.source() == src]
                         step("project_reopened_layer_resolves", ok and len(layers) == 1 and layers[0].isValid(),
                              valid=[l.isValid() for l in layers])
-                        unloadPlugin("fortyguard_heatmap")
-                        step("unload", "fortyguard_heatmap" not in active_plugins and plugin.action is None)
-                        finish(all(s["ok"] for s in REPORT["steps"]))
+                        # second pass: an analysis mode (exceedance) through the same dialog
+                        plugin.run()
+                        dlg2 = plugin.dialog
+                        dlg2.output_dir.setFilePath(out_dir)
+                        dlg2.demo_check.setChecked(True)
+                        dlg2.demo_aoi_btn.click()
+                        dlg2.analysis_combo.setCurrentIndex(dlg2.analysis_combo.findData("exceedance"))
+                        before2 = set(QgsProject.instance().mapLayers())
+                        dlg2.generate_btn.click()
+                        step("exceedance_demo_started", dlg2.job is not None and dlg2.job.is_active,
+                             threshold_visible=dlg2.threshold_spin.isVisibleTo(dlg2))
+
+                        def _after2():
+                            if dlg2.job is not None and dlg2.job.is_active:
+                                QTimer.singleShot(500, _after2); return
+                            new2 = set(QgsProject.instance().mapLayers()) - before2
+                            lyr2 = QgsProject.instance().mapLayer(new2.pop()) if new2 else None
+                            step("exceedance_demo_layer", lyr2 is not None and "Exceedance hours" in lyr2.name()
+                                 and all(r.label().endswith(" h") for r in lyr2.renderer().ranges()),
+                                 layer_name=lyr2.name() if lyr2 else None, stats=dlg2.stats_label.text())
+                            unloadPlugin("fortyguard_heatmap")
+                            step("unload", "fortyguard_heatmap" not in active_plugins and plugin.action is None)
+                            finish(all(s["ok"] for s in REPORT["steps"]))
+
+                        QTimer.singleShot(500, _after2)
                     except Exception:
                         step("exception", False, trace=traceback.format_exc())
                         finish(False)

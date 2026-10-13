@@ -4,6 +4,7 @@
 No QGIS imports. Geometry arrives as an already-serialised GeoJSON Polygon
 dict in EPSG:4326 (see core/geometry.py for the QGIS side).
 """
+import calendar
 import datetime as _dt
 import re
 
@@ -161,11 +162,70 @@ def build_date_time(filter_type, start_date, start_time=None, end_time=None, end
     return date_time
 
 
-def build_payload(polygon_geometry, filter_type, start_date, granularity,
-                  start_time=None, end_time=None, end_date=None, now=None):
-    """Build the full POST /v1/heatmap JSON body for a tcm heatmap.
+def month_range(year, month, now=None):
+    """Return (first_date, last_date) ISO strings for a calendar month, clipped to the API limits.
 
-    Only documented fields are sent. No time-zone field is added because the
+    * Leap years come from the calendar module.
+    * A month that has not started yet (beyond now + 12 h) is rejected.
+    * An incomplete month is clipped to the latest allowed date.
+    * Months before 2019-01 are rejected.
+    """
+    try:
+        year, month = int(year), int(month)
+        first = _dt.date(year, month, 1)
+    except (TypeError, ValueError):
+        raise ValidationError("Choose a valid month.")
+    last = _dt.date(year, month, calendar.monthrange(year, month)[1])
+    min_day = _dt.date.fromisoformat(contract.MIN_DATE_ISO)
+    if last < min_day:
+        raise ValidationError("Months before %s are not supported by the FortyGuard API." % contract.MIN_DATE_ISO[:7])
+    latest = latest_allowed_date(now)
+    if first > latest:
+        raise ValidationError("%s has not started yet; the API accepts dates up to %d hours ahead (latest: %s)."
+                              % (first.strftime("%B %Y"), contract.FORECAST_HOURS_AHEAD, latest.isoformat()))
+    if first < min_day:
+        first = min_day
+    if last > latest:
+        last = latest
+    if last <= first:
+        raise ValidationError("Only one day of %s is available so far; use the Single day filter for %s."
+                              % (first.strftime("%B %Y"), first.isoformat()))
+    return first.isoformat(), last.isoformat()
+
+
+def validate_analysis(analytic_type, filter_type, threshold=None, direction=None):
+    """Return (analytic_type, extra_fields) for the chosen analysis or raise ValidationError."""
+    if analytic_type not in contract.ANALYTIC_TYPES:
+        raise ValidationError("Unknown analysis type %r. Options: %s" % (analytic_type, ", ".join(contract.ANALYTIC_TYPES)))
+    extra = {}
+    if analytic_type == contract.ANALYTIC_TYPE_TCM:
+        return analytic_type, extra
+    if int(filter_type) not in contract.ANALYSIS_FILTER_TYPES:
+        raise ValidationError(
+            "%s needs a time window (range of hours, single day, range of days or a month); "
+            "a single hour is not supported for this analysis." % contract.ANALYSIS_LABELS[analytic_type])
+    if analytic_type in contract.THRESHOLD_TYPES:
+        try:
+            threshold = float(threshold)
+        except (TypeError, ValueError):
+            raise ValidationError("Enter a temperature threshold in °C for %s." % contract.ANALYSIS_LABELS[analytic_type])
+        if threshold != threshold or not (contract.THRESHOLD_MIN_C <= threshold <= contract.THRESHOLD_MAX_C):
+            raise ValidationError("Threshold must be between %g and %g °C." % (contract.THRESHOLD_MIN_C, contract.THRESHOLD_MAX_C))
+        direction = direction or contract.DIRECTION_ABOVE
+        if direction != contract.DIRECTION_ABOVE:
+            raise ValidationError("Only direction 'above' is offered by this plugin.")
+        extra["threshold"] = round(threshold, 2)
+        extra["direction"] = direction
+    return analytic_type, extra
+
+
+def build_payload(polygon_geometry, filter_type, start_date, granularity,
+                  start_time=None, end_time=None, end_date=None, now=None,
+                  analytic_type=contract.ANALYTIC_TYPE_TCM, threshold=None, direction=None):
+    """Build the full POST /v1/heatmap JSON body.
+
+    Only documented fields are sent. threshold/direction are included only for
+    exceedance and persistence. No time-zone field is added because the
     documentation does not define one.
     """
     try:
@@ -176,13 +236,16 @@ def build_payload(polygon_geometry, filter_type, start_date, granularity,
         raise ValidationError(
             "Resolution %s m is not supported. Documented options: %s metres."
             % (granularity, ", ".join(str(g) for g in contract.GRANULARITY_OPTIONS)))
-
-    return {
+    date_time = build_date_time(filter_type, start_date, start_time, end_time, end_date, now=now)
+    analytic_type, extra = validate_analysis(analytic_type, date_time["filter_type"], threshold, direction)
+    body = {
         "polygon_aoi": build_polygon_aoi(polygon_geometry),
-        "date_time": build_date_time(filter_type, start_date, start_time, end_time, end_date, now=now),
+        "date_time": date_time,
         "granularity": granularity,
-        "analytic_type": contract.ANALYTIC_TYPE_TCM,
+        "analytic_type": analytic_type,
     }
+    body.update(extra)
+    return body
 
 
 def describe_request(payload):
@@ -197,4 +260,7 @@ def describe_request(payload):
         when = dt["start_date"]
     else:
         when = "%s to %s" % (dt["start_date"], dt["end_date"])
-    return "%s | %d m" % (when, payload["granularity"])
+    text = "%s | %d m" % (when, payload["granularity"])
+    if "threshold" in payload:
+        text += " | %s %g °C" % (payload.get("direction", "above"), payload["threshold"])
+    return text

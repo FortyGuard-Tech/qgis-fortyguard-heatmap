@@ -91,6 +91,35 @@ def main():
     with open(os.path.join(OUT, "demo_result_daily.geojson"), "w") as fh:
         json.dump(daily, fh)
 
+    # Analysis schemas: properties.value + stats_data {analytic_type, units, n_cells, min, max, mean}
+    def analysis_fixture(name, values, units="hour"):
+        feats = [feature(k, ring, {"tile_id": k, "value": v}) for (k, ring, _t), v in zip(tiles(), values)]
+        valid = [v for v in values if v is not None]
+        stats = {"activity_id": "demo-%s" % name, "analytic_type": name, "units": units, "n_cells": len(valid),
+                 "min": min(valid), "max": max(valid), "mean": round(sum(valid) / len(valid), 4), "demo": True}
+        doc = {"type": "FeatureCollection", "demo_note": NOTE, "features": feats, "demo_stats": stats}
+        with open(os.path.join(OUT, "demo_result_%s.geojson" % name), "w") as fh:
+            json.dump(doc, fh)
+
+    temps = [t for _k, _r, t in tiles()]
+    # exceedance: hours above 35 C over a week; cool waterfront tiles get exactly 0 (valid, not missing)
+    exc = [round(max(0.0, (t - 29.0) * 9.5), 2) for t in temps]
+    exc[7] = None  # one missing value on purpose
+    analysis_fixture("exceedance", exc)
+    # persistence: longest continuous run, shorter than exceedance, zeros stay zero
+    per = [round(v / 3.1, 2) if v else 0.0 for v in (e if e is not None else 0.0 for e in exc)]
+    per[7] = None
+    analysis_fixture("persistence", per)
+    # time_of_measure: hour of day (0-23, UTC); hot core peaks 14-16, edges earlier/later, some at 00:00
+    tom = []
+    for i, t in enumerate(temps):
+        h = 14 + int(round((t - 29.0)))
+        if i % 23 == 0:
+            h = 0  # midnight peaks are valid results
+        tom.append(max(0, min(23, h)))
+    tom[7] = None
+    analysis_fixture("time_of_measure", tom)
+
     aoi = {"type": "Feature", "properties": {"name": "Demo AOI (synthetic test area)", "demo": True},
            "geometry": {"type": "Polygon", "coordinates": [AOI]}}
     with open(os.path.join(OUT, "demo_aoi.geojson"), "w") as fh:
@@ -100,7 +129,9 @@ def main():
         fh.write("# Demo fixtures (SYNTHETIC)\n\n" + NOTE + "\n\n"
                  "* `demo_aoi.geojson` - sample area (EPSG:4326), same rectangle as the public API docs example.\n"
                  "* `demo_result_single_hour.geojson` - %d tiles with `properties.temperature` (one NULL on purpose).\n"
-                 "* `demo_result_daily.geojson` - %d tiles with `average_temperature`, `min_temperature`, `max_temperature`.\n\n"
+                 "* `demo_result_daily.geojson` - %d tiles with `average_temperature`, `min_temperature`, `max_temperature`.\n"
+                 "* `demo_result_exceedance.geojson`, `demo_result_persistence.geojson`, `demo_result_time_of_measure.geojson` - "
+                 "analysis schemas (`properties.value`, stats with `units`), including zero values, midnight peaks and one NULL each.\n\n"
                  "Values are invented with a smooth function and never came from the FortyGuard API.\n"
                  "Regenerate with `python3 scripts/make_demo_fixtures.py`.\n" % (NX * NY, NX * NY))
     print("wrote fixtures to", OUT)

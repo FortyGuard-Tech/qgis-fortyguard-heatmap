@@ -35,9 +35,48 @@ SUPPORT_EMAIL = "support@fortyguard.com"  # published on the Known Limitations p
 AUTH_HEADER = "api-key"
 CONTENT_TYPE_JSON = "application/json"
 
-# analytic_type: this prototype only supports the temperature snapshot.
+# analytic_type values (Create Heatmap page, verified 2026-10-12):
+#   tcm             - Temperature snapshot; value is temperature (°C) per tile
+#   time_of_measure - hour of day (0-23, UTC) at which the peak temperature occurs
+#   exceedance      - number of hours the temperature passes the threshold
+#   persistence     - longest continuous run of hours past the threshold
+# "time_of_measure, exceedance and persistence return values in hours (stats_data.units = "hour"); tcm returns °C."
 ANALYTIC_TYPE_TCM = "tcm"
+ANALYTIC_TYPE_EXCEEDANCE = "exceedance"
+ANALYTIC_TYPE_PERSISTENCE = "persistence"
+ANALYTIC_TYPE_TIME_OF_MEASURE = "time_of_measure"
+ANALYTIC_TYPES = (ANALYTIC_TYPE_TCM, ANALYTIC_TYPE_EXCEEDANCE, ANALYTIC_TYPE_PERSISTENCE, ANALYTIC_TYPE_TIME_OF_MEASURE)
+THRESHOLD_TYPES = frozenset({ANALYTIC_TYPE_EXCEEDANCE, ANALYTIC_TYPE_PERSISTENCE})
+ANALYSIS_LABELS = {
+    ANALYTIC_TYPE_TCM: "Temperature / Snapshot",
+    ANALYTIC_TYPE_EXCEEDANCE: "Exceedance",
+    ANALYTIC_TYPE_PERSISTENCE: "Persistence",
+    ANALYTIC_TYPE_TIME_OF_MEASURE: "Peak temperature time",
+}
+ANALYSIS_EXPLANATIONS = {
+    ANALYTIC_TYPE_TCM: "Temperature across the selected period (°C).",
+    ANALYTIC_TYPE_EXCEEDANCE: "Total hours above the selected temperature threshold.",
+    ANALYTIC_TYPE_PERSISTENCE: "Longest continuous period (hours) above the threshold.",
+    ANALYTIC_TYPE_TIME_OF_MEASURE: "Hour of day (UTC) when each tile reaches its highest temperature.",
+}
 TCM_UNIT = "°C"  # documented: "tcm — Temperature snapshot; value is temperature (°C) per tile"
+HOURS_UNIT = "h"
+PEAK_TIME_TZ = "UTC"  # documented: "hour of day (0–23, UTC)"
+UNIT_KIND = {  # how to label legends and summaries
+    ANALYTIC_TYPE_TCM: "celsius",
+    ANALYTIC_TYPE_EXCEEDANCE: "hours",
+    ANALYTIC_TYPE_PERSISTENCE: "hours",
+    ANALYTIC_TYPE_TIME_OF_MEASURE: "hour_of_day",
+}
+# threshold: "Temperature threshold in °C for exceedance / persistence. Defaults to 30 °C."
+# direction: "'above' (default) counts hours above the threshold, 'below' counts hours below it."
+DIRECTION_ABOVE = "above"
+DEFAULT_THRESHOLD_C = 35.0      # UI starting value requested for this plugin (API default is 30)
+THRESHOLD_MIN_C = -40.0
+THRESHOLD_MAX_C = 70.0
+# Quickstart README: analysis types are computed "over a multi-hour or multi-day window
+# (filter_type 2 or 4)"; the Forma extension disables Single hour for them.
+ANALYSIS_FILTER_TYPES = (2, 3, 4)
 
 # Documented granularity options (metres).
 GRANULARITY_OPTIONS = (60, 80, 100)
@@ -74,8 +113,10 @@ TERMINAL_SUCCESS = frozenset({"completed", "succeeded"})
 TERMINAL_FAILURE = frozenset({"failed", "error"})
 
 # Result field names.
-# Single hour / range of hours (filter_type 1, 2): properties.temperature
-# Single day / range of days (filter_type 3, 4): average/min/max_temperature
+# tcm, documented: hourly -> properties.temperature; daily -> average/min/max_temperature.
+# Observed live (dev, 2026-10-13): an hourly tcm request also returned the aggregate fields.
+# Analysis types (exceedance/persistence/time_of_measure): properties.value, stats_data.units = "hour".
+FIELD_VALUE = "value"
 FIELD_TEMPERATURE = "temperature"
 FIELD_AVERAGE = "average_temperature"
 FIELD_MIN = "min_temperature"
