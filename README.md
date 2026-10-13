@@ -190,8 +190,8 @@ Logs: **View ▸ Panels ▸ Log Messages ▸ "FortyGuard Heatmap"**. The key is 
 
 ## 7. License and attribution
 
-GPL‑2.0‑or‑later (see `fortyguard_heatmap/LICENSE`). Schema knowledge verified
-against the FortyGuard API documentation and the MIT‑licensed
-FortyGuard‑Tech/temperature‑api‑quickstart repository; no code copied. Demo tile
-values are synthetic. The `email` in `metadata.txt` is the project account
-address; change it before any public publication.
+GPL‑2.0‑or‑later (see `fortyguard_heatmap/LICENSE`). Publisher: FortyGuard,
+support@fortyguard.com. Source: https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap.
+Schema knowledge verified against the FortyGuard API documentation and the
+MIT‑licensed FortyGuard‑Tech/temperature‑api‑quickstart repository; no code
+copied. Demo tile values are synthetic.

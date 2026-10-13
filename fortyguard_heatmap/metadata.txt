@@ -5,13 +5,11 @@ qgisMaximumVersion=3.99
 description=Generate FortyGuard temperature heatmaps (tcm, °C) for a selected polygon and add them as styled layers.
 about=Select one polygon in your project, enter your own FortyGuard API key, choose the date/time filter and resolution, and click Generate Heatmap. The plugin submits the request to the FortyGuard Temperature API (POST /v1/heatmap), polls the job status without blocking QGIS, saves the completed GeoJSON tiles next to your other data and adds a graduated temperature layer (tcm, degrees Celsius). A "Check key and credits" button shows your plan and remaining credits. An optional, clearly labelled Demo Mode replays synthetic data offline. Requirements: a FortyGuard API key (https://www.fortyguard.com/api-pricing); completed requests consume credits; documented coverage is the United States. No external Python dependencies (uses QGIS's own network manager). Tested on macOS 27 (Apple Silicon) with QGIS 3.44.15 LTR only; Windows, Linux and QGIS 4 (Qt 6) are not yet tested, so this release is marked experimental.
 version=0.2.0
-author=Mustafa Hamdy (FortyGuard)
-email=gpt@fortyguard.com
-# TODO before uploading to plugins.qgis.org: point tracker/repository at the dedicated public
-# plugin repository (see docs/PUBLISHING.md). The quickstart repository is FortyGuard's existing public repo.
-tracker=https://github.com/FortyGuard-Tech/temperature-api-quickstart/issues
-repository=https://github.com/FortyGuard-Tech/temperature-api-quickstart
-homepage=https://docs-api.fortyguard.com/docs/introduction
+author=FortyGuard
+email=support@fortyguard.com
+tracker=https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/issues
+repository=https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap
+homepage=https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap#readme
 tags=temperature,heatmap,climate,urban heat,heat island,fortyguard,api,vector,geojson,weather
 category=Plugins
 icon=resources/icon.png
