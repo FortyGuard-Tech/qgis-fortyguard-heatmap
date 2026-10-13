@@ -1,0 +1,4 @@
+Warning: Populating font family aliases took 34 ms. Replace uses of missing font family "Sans-serif" with one that exists to avoid this cost. 
+Warning: QWidget::insertAction: Attempt to insert null action
+Warning: QWidget::insertAction: Attempt to insert null action
+Warning: QWidget::insertAction: Attempt to insert null action

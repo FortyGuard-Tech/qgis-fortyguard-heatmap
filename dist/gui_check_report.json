@@ -1,0 +1,86 @@
+{
+  "steps": [
+    {
+      "name": "qgis_version",
+      "ok": true,
+      "version": "3.44.15-Solothurn"
+    },
+    {
+      "name": "loadPlugin",
+      "ok": true
+    },
+    {
+      "name": "startPlugin",
+      "ok": true
+    },
+    {
+      "name": "toolbar_action_present",
+      "ok": true,
+      "text": "FortyGuard Heatmap",
+      "icon_loaded": true
+    },
+    {
+      "name": "dialog_shown",
+      "ok": true
+    },
+    {
+      "name": "demo_aoi_layer",
+      "ok": true,
+      "selection_text": "Feature 1 of 'Demo AOI (synthetic test area)' | source CRS EPSG:3857 | ~1.71 km\u00b2 (0.66 mi\u00b2) | sent as EPSG:4326 Polygon"
+    },
+    {
+      "name": "generate_clicked_job_active",
+      "ok": true,
+      "generate_enabled": false,
+      "stop_enabled": true
+    },
+    {
+      "name": "result_layer_added",
+      "ok": true,
+      "layer_name": "[DEMO - synthetic] FortyGuard tcm mean \u00b0C | 2026-10-12 | 100 m",
+      "features": 182,
+      "crs": "EPSG:4326",
+      "source": "/Users/mustafahamdy/Downloads/QGIS inetgration/dist/gui_check_output/fortyguard_DEMO_2026-10-12_100m_demo-dai_20261013_100434.geojson"
+    },
+    {
+      "name": "styled_graduated",
+      "ok": true,
+      "attribute": "average_temperature",
+      "classes": 7
+    },
+    {
+      "name": "demo_labelled",
+      "ok": true
+    },
+    {
+      "name": "stats_shown",
+      "ok": true,
+      "text": "API stats_data (\u00b0C): min 20.81, max 28.67, mean 24.26, sd 1.85\nTiles 'average_temperature': 182 values, min 20.81, max 28.67, mean 24.26 \u00b0C; 0 missing\nSYNTHETIC DEMO DATA - not a FortyGuard analysis."
+    },
+    {
+      "name": "canvas_screenshot",
+      "ok": true,
+      "path": "/Users/mustafahamdy/Downloads/QGIS inetgration/dist/gui_check_canvas.png"
+    },
+    {
+      "name": "project_saved",
+      "ok": true,
+      "path": "/Users/mustafahamdy/Downloads/QGIS inetgration/dist/gui_check_output/gui_check_project.qgz"
+    },
+    {
+      "name": "project_reopened_layer_resolves",
+      "ok": true,
+      "valid": [
+        true
+      ]
+    },
+    {
+      "name": "unload",
+      "ok": true
+    }
+  ],
+  "ok": true,
+  "started": "2026-10-13 10:04:20",
+  "qgis_version": "3.44.15-Solothurn",
+  "finished": "2026-10-13 10:04:36"
+}

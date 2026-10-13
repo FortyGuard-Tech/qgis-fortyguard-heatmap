@@ -1,0 +1,34 @@
+{
+ "type": "Feature",
+ "properties": {
+  "name": "Demo AOI (synthetic test area)",
+  "demo": true
+ },
+ "geometry": {
+  "type": "Polygon",
+  "coordinates": [
+   [
+    [
+     -74.017,
+     40.705
+    ],
+    [
+     -74.003,
+     40.705
+    ],
+    [
+     -74.003,
+     40.718
+    ],
+    [
+     -74.017,
+     40.718
+    ],
+    [
+     -74.017,
+     40.705
+    ]
+   ]
+  ]
+ }
+}

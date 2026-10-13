@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+.env
+*.env
+api_key*
+*.key
+dist/gui_check_output/
+dist/gui_check_stdout.log
+dist/*.zip
+dist/*.log

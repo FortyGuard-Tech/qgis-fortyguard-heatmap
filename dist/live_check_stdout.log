@@ -1,0 +1,93 @@
+API key loaded from /Users/mustafahamdy/.config/fortyguard/api_key (32 characters; value not shown).
+Request: {"date_time": {"start_date": "2024-07-15", "filter_type": 3}, "granularity": 100, "analytic_type": "tcm"}
+AOI ring points: 5
+   Submitting heatmap request...
+submitted -> activity_id dcdb57e7-6d8e-4291-9449-4b4c47deb674
+status: Submitted | Waiting for the first status check
+   Checking status of dcdb57e7-6d8e-4291-9449-4b4c47deb674 (elapsed 2s)...
+status: Processing | Job still running
+   Checking status of dcdb57e7-6d8e-4291-9449-4b4c47deb674 (elapsed 5s)...
+status: Processing | Job still running
+   Checking status of dcdb57e7-6d8e-4291-9449-4b4c47deb674 (elapsed 8s)...
+status: Processing | Job still running
+   Checking status of dcdb57e7-6d8e-4291-9449-4b4c47deb674 (elapsed 11s)...
+status: Processing | Job still running
+   Checking status of dcdb57e7-6d8e-4291-9449-4b4c47deb674 (elapsed 14s)...
+status: Processing | Job still running
+   Checking status of dcdb57e7-6d8e-4291-9449-4b4c47deb674 (elapsed 17s)...
+status: Processing | Job still running
+   Checking status of dcdb57e7-6d8e-4291-9449-4b4c47deb674 (elapsed 20s)...
+status: Processing | Job still running
+   Checking status of dcdb57e7-6d8e-4291-9449-4b4c47deb674 (elapsed 23s)...
+status: Completed | Result received
+{
+  "activity_id": "dcdb57e7-6d8e-4291-9449-4b4c47deb674",
+  "request": {
+    "date_time": {
+      "start_date": "2024-07-15",
+      "filter_type": 3
+    },
+    "granularity": 100,
+    "analytic_type": "tcm"
+  },
+  "ok": true,
+  "error": null,
+  "n_features": 150,
+  "geometry_types": [
+    "Polygon"
+  ],
+  "property_keys": [
+    "average_temperature",
+    "max_temperature",
+    "min_temperature",
+    "tile_id"
+  ],
+  "available_measures": [
+    "average_temperature",
+    "max_temperature",
+    "min_temperature"
+  ],
+  "ranges": {
+    "average_temperature": {
+      "count": 150,
+      "missing": 0,
+      "min": 28.841,
+      "max": 29.7458,
+      "mean": 29.106353333333335
+    },
+    "max_temperature": {
+      "count": 150,
+      "missing": 0,
+      "min": 33.4718,
+      "max": 34.4055,
+      "mean": 33.745658666666664
+    },
+    "min_temperature": {
+      "count": 150,
+      "missing": 0,
+      "min": 24.5109,
+      "max": 24.6058,
+      "mean": 24.538767333333332
+    }
+  },
+  "stats_data_keys": [
+    "normal_temperature_distribution",
+    "overall_temperature_distribution",
+    "temperature_frequency",
+    "temperature_stats"
+  ],
+  "temperature_stats": {
+    "minimum": 28.841,
+    "maximum": 29.7458,
+    "mean": 29.10635333333333,
+    "standard_deviation": 0.2991150039580783
+  },
+  "first_feature_properties": {
+    "tile_id": 0,
+    "average_temperature": 28.8603,
+    "min_temperature": 24.5131,
+    "max_temperature": 33.4918
+  },
+  "saved_geojson": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2024-07-15_100m_dcdb57e7_20261013_093618.geojson",
+  "saved_meta": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2024-07-15_100m_dcdb57e7_20261013_093618.meta.json"
+}

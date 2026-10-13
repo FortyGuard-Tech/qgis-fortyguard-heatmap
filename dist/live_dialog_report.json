@@ -1,0 +1,144 @@
+{
+  "steps": [
+    {
+      "name": "loadPlugin",
+      "ok": true
+    },
+    {
+      "name": "startPlugin",
+      "ok": true
+    },
+    {
+      "name": "dialog_shown",
+      "ok": true
+    },
+    {
+      "name": "environment_selected",
+      "ok": true,
+      "base_url": "https://tos-enterprise-api.dev.app.fortyguard.com",
+      "developer_group_collapsed": true
+    },
+    {
+      "name": "key_entered",
+      "ok": true,
+      "key_length": 32,
+      "masked": true
+    },
+    {
+      "name": "credits_check",
+      "ok": true,
+      "text": "Plan: Premium (One-Time) | Key: active | Credits remaining: 995,780 | of 1,000,000 | Key expires: 2026-10-19T14:36:30.783168Z"
+    },
+    {
+      "name": "aoi_selected",
+      "ok": true,
+      "crs": "EPSG:3857",
+      "selection_text": "Feature 1 of 'Demo AOI (synthetic test area)' | source CRS EPSG:3857 | ~1.71 km\u00b2 (0.66 mi\u00b2) | sent as EPSG:4326 Polygon"
+    },
+    {
+      "name": "confirmation_shown_and_accepted",
+      "ok": true,
+      "text": "Submit a live FortyGuard request?\n\nEnvironment: https://tos-enterprise-api.dev.app.fortyguard.com\nArea: feature 1 of 'Demo AOI (synthetic test area)' (~1.71 km\u00b2 / 0.66 mi\u00b2)\nRequest: 2024-07-15 14:00 | 100 m (filter type 1, tcm)\n\nA completed request consumes credits from your plan (documented: 3,500 on API Basic/Startup, 4,220 on API Premium). Coverage is documented as United States only.\n\nContinue"
+    },
+    {
+      "name": "job_active",
+      "ok": true,
+      "generate_enabled": false,
+      "stop_enabled": true,
+      "status": "Submitting heatmap request..."
+    },
+    {
+      "name": "key_not_in_log",
+      "ok": true
+    },
+    {
+      "name": "activity_id",
+      "ok": true,
+      "activity_id": "69a66823-c9b8-400c-8400-d7a7a67c0c6f"
+    },
+    {
+      "name": "status_polling_seen",
+      "ok": true,
+      "statuses": [
+        "[10:00:17] Status: Processing (Job still running)",
+        "[10:00:20] Status: Processing (Job still running)",
+        "[10:00:24] Status: Processing (Job still running)",
+        "[10:00:27] Status: Processing (Job still running)",
+        "[10:00:31] Status: Processing (Job still running)",
+        "[10:00:34] Status: Completed (Result received)"
+      ]
+    },
+    {
+      "name": "result_layer_added",
+      "ok": true,
+      "layer_name": "FortyGuard tcm mean \u00b0C | 2024-07-15 14:00 | 100 m",
+      "features": 150,
+      "crs": "EPSG:4326",
+      "source": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2024-07-1514_00_100m_69a66823_20261013_100034.geojson",
+      "demo_flag": "false"
+    },
+    {
+      "name": "not_labelled_demo",
+      "ok": true
+    },
+    {
+      "name": "styled_graduated",
+      "ok": true,
+      "attribute": "average_temperature",
+      "classes": 7,
+      "labels": [
+        "31.9 - 31.9 \u00b0C",
+        "31.9 - 31.9 \u00b0C",
+        "31.9 - 32.0 \u00b0C",
+        "32.0 - 32.2 \u00b0C",
+        "32.2 - 32.4 \u00b0C",
+        "32.4 - 32.9 \u00b0C",
+        "32.9 - 33.1 \u00b0C"
+      ]
+    },
+    {
+      "name": "numeric_field",
+      "ok": true,
+      "type": "Real",
+      "min": 31.887,
+      "max": 33.1424
+    },
+    {
+      "name": "stats_shown",
+      "ok": true,
+      "text": "API stats_data (\u00b0C): min 31.89, max 33.14, mean 32.26, sd 0.41\nTiles 'average_temperature': 150 values, min 31.89, max 33.14, mean 32.26 \u00b0C; 0 missing"
+    },
+    {
+      "name": "file_saved",
+      "ok": true,
+      "path": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2024-07-1514_00_100m_69a66823_20261013_100034.geojson"
+    },
+    {
+      "name": "meta_has_no_key",
+      "ok": true,
+      "activity": "69a66823-c9b8-400c-8400-d7a7a67c0c6f"
+    },
+    {
+      "name": "dialog_screenshot",
+      "ok": true,
+      "path": "/Users/mustafahamdy/Downloads/QGIS inetgration/dist/live_dialog_screenshot.png"
+    },
+    {
+      "name": "canvas_screenshot",
+      "ok": true,
+      "path": "/Users/mustafahamdy/Downloads/QGIS inetgration/dist/live_dialog_canvas.png"
+    },
+    {
+      "name": "project_saved",
+      "ok": true,
+      "path": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/live_dialog_project.qgz"
+    },
+    {
+      "name": "project_reopened_layer_resolves",
+      "ok": true
+    }
+  ],
+  "ok": true,
+  "started": "2026-10-13 09:59:56",
+  "finished": "2026-10-13 10:00:38"
+}

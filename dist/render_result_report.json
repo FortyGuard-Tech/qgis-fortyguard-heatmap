@@ -1,0 +1,52 @@
+{
+  "steps": [
+    {
+      "name": "validated",
+      "ok": true,
+      "features": 150,
+      "measures": [
+        "average_temperature",
+        "max_temperature",
+        "min_temperature"
+      ]
+    },
+    {
+      "name": "layer_loaded_styled",
+      "ok": true,
+      "layer_name": "FortyGuard tcm mean \u00b0C | 2024-07-15 | 100 m",
+      "classes": 7,
+      "crs": "EPSG:4326",
+      "features": 150,
+      "labels": [
+        "28.8 - 28.8 \u00b0C",
+        "28.8 - 28.9 \u00b0C",
+        "28.9 - 28.9 \u00b0C",
+        "28.9 - 29.1 \u00b0C",
+        "29.1 - 29.2 \u00b0C",
+        "29.2 - 29.6 \u00b0C",
+        "29.6 - 29.7 \u00b0C"
+      ]
+    },
+    {
+      "name": "stats",
+      "ok": true,
+      "temperature_stats": {
+        "minimum": 28.841,
+        "maximum": 29.7458,
+        "mean": 29.10635333333333,
+        "standard_deviation": 0.2991150039580783
+      }
+    },
+    {
+      "name": "screenshot",
+      "ok": true,
+      "path": "/Users/mustafahamdy/Downloads/QGIS inetgration/dist/render_result_canvas.png"
+    },
+    {
+      "name": "project_saved",
+      "ok": true,
+      "path": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/live_result_project.qgz"
+    }
+  ],
+  "ok": true
+}

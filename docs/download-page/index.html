@@ -1,0 +1,122 @@
+<title>FortyGuard for QGIS</title>
+<meta name="description" content="Download the FortyGuard Heatmap plugin for QGIS and generate temperature heatmaps with your own API key.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
+<style>
+  /* Layout: one centred reading column; a two-column band for the install steps beside the screenshot. */
+  :root {
+    --bg: #f7fafc;
+    --surface: #ffffff;
+    --fg: #15232e;
+    --muted: #5a6b78;
+    --line: #d7e1ea;
+    --accent: #0a8fcc;      /* FortyGuard blue from the brand mark */
+    --accent-fg: #ffffff;
+    --warm: #c9541f;        /* warm tile colour from the heatmap ramp, used sparingly */
+    --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --font-body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1a22; --surface: #16242e; --fg: #e8eef3; --muted: #9db0bf; --line: #2a3b48;
+      --accent: #3fb2e8; --accent-fg: #061018; --warm: #f08a5b; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1a22; --surface: #16242e; --fg: #e8eef3; --muted: #9db0bf; --line: #2a3b48;
+    --accent: #3fb2e8; --accent-fg: #061018; --warm: #f08a5b; color-scheme: dark;
+  }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 17px; line-height: 1.55; margin: 0; }
+  .wrap { max-width: 980px; margin: 0 auto; padding-block: 32px 64px; padding-inline: 20px; }
+  header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header img { width: 56px; height: 56px; border-radius: 50%; }
+  h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(30px, 5vw, 44px); line-height: 1.1; margin: 0; text-wrap: balance; }
+  .lede { color: var(--muted); max-width: 62ch; margin: 12px 0 0; }
+  h2 { font-family: var(--font-display); font-weight: 600; font-size: 24px; margin: 40px 0 12px; }
+  .cta { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 24px; }
+  .button { display: inline-block; background: var(--accent); color: var(--accent-fg); font-weight: 700; padding: 14px 22px; border-radius: 8px; text-decoration: none; font-size: 18px; }
+  .button:focus-visible { outline: 3px solid var(--warm); outline-offset: 2px; }
+  .meta { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .band { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 760px) { .band { grid-template-columns: 1fr; } }
+  ol.steps { padding-left: 22px; margin: 0; }
+  ol.steps li { margin-bottom: 10px; }
+  figure { margin: 0; }
+  figure img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .note { border-left: 4px solid var(--warm); padding: 10px 14px; background: var(--surface); border-radius: 0 8px 8px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; }
+  code { font-family: var(--font-mono); font-size: 0.92em; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+  a { color: var(--accent); }
+  footer { margin-top: 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <img src="icon.png" alt="FortyGuard mark">
+    <div>
+      <h1>Download FortyGuard for QGIS</h1>
+      <p class="lede">The FortyGuard Heatmap plugin adds FortyGuard temperature heatmaps to your own QGIS projects. Select an area, pick a date, and get a styled layer with tile temperatures in °C.</p>
+    </div>
+  </header>
+
+  <div class="cta">
+    <a class="button" href="fortyguard_heatmap-0.2.0.zip">Download FortyGuard Heatmap 0.2.0 (ZIP)</a>
+    <span class="meta">Version 0.2.0 · experimental · 52 KB · GPL-2.0-or-later</span>
+  </div>
+
+  <h2>Install in QGIS</h2>
+  <div class="band">
+    <ol class="steps">
+      <li>Open QGIS and choose <strong>Plugins ▸ Manage and Install Plugins…</strong></li>
+      <li>Select <strong>Install from ZIP</strong>, pick the downloaded file, and click <strong>Install Plugin</strong>.</li>
+      <li>In the <strong>Installed</strong> tab make sure <strong>FortyGuard Heatmap</strong> is ticked. A FortyGuard button appears in the toolbar.</li>
+      <li>Click the button, paste <strong>your own FortyGuard API key</strong>, and click <em>Check key and credits</em>.</li>
+      <li>Select exactly one polygon on the map, choose the date and resolution, then click <strong>Generate Heatmap</strong>.</li>
+    </ol>
+    <figure>
+      <img src="plugin-dialog.png" alt="The FortyGuard Heatmap dialog in QGIS after a completed request">
+      <figcaption>The plugin dialog after a completed request (QGIS 3.44, macOS).</figcaption>
+    </figure>
+  </div>
+
+  <h2>Your API key</h2>
+  <p>The plugin works with your own FortyGuard API key. Get one on the <a href="https://www.fortyguard.com/api-pricing">FortyGuard API plans page</a>. The key is sent only to the FortyGuard API, is kept in memory while QGIS runs, and can optionally be saved in the encrypted QGIS authentication database. Every completed heatmap request consumes credits from your plan (documented: 3,500 credits on API Basic/Startup, 4,220 on API Premium; failed tasks are free). Coverage is documented as the United States.</p>
+
+  <h2>What you get</h2>
+  <div class="band">
+    <figure>
+      <img src="heatmap-layer.png" alt="A FortyGuard heatmap layer rendered in QGIS with a blue to red temperature ramp">
+      <figcaption>A real FortyGuard tcm heatmap (150 tiles, 100 m) styled with the plugin's graduated °C ramp.</figcaption>
+    </figure>
+    <div>
+      <ul>
+        <li>GeoJSON tiles saved in <code>Documents/FortyGuard Heatmaps</code> and added as a styled vector layer.</li>
+        <li>Single hour, range of hours, single day and range of days filters; 60, 80 or 100 m resolution.</li>
+        <li>Mean, minimum or maximum tile temperature for daily outputs, area statistics from the API.</li>
+        <li>Non-blocking status polling with Stop Waiting and Check Again.</li>
+        <li>An optional Demo Mode with clearly labelled synthetic data for offline testing.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Tested versions</h2>
+  <table>
+    <tr><th>Platform</th><th>QGIS</th><th>Status</th></tr>
+    <tr><td>macOS 27 (Apple Silicon)</td><td>3.44.15 LTR (Qt 5.15, Python 3.12)</td><td>Tested, including a real API request</td></tr>
+    <tr><td>Windows, Linux</td><td>3.34 to 3.x</td><td>Not yet tested</td></tr>
+    <tr><td>Any</td><td>QGIS 4 (Qt 6)</td><td>Not supported yet</td></tr>
+  </table>
+  <p class="note">This is an experimental release. Please report problems with the QGIS version, operating system and the text from the plugin's log panel (never include your API key).</p>
+
+  <h2>Documentation and support</h2>
+  <ul>
+    <li><a href="https://docs-api.fortyguard.com/docs/introduction">FortyGuard API documentation</a> · <a href="https://docs-api.fortyguard.com/docs/create-heatmap">Create Heatmap endpoint</a> · <a href="https://docs-api.fortyguard.com/docs/authentication">Authentication</a> · <a href="https://docs-api.fortyguard.com/docs/limitations">Known limitations</a></li>
+    <li><a href="https://docs-api.fortyguard.com/docs/credits-usage">Check your credits usage</a></li>
+    <li>Support: <code>support@fortyguard.com</code> · <a href="https://www.fortyguard.com/contact-us">Contact FortyGuard</a></li>
+  </ul>
+
+  <footer>FortyGuard Heatmap for QGIS is free software under the GNU GPL v2 or later. QGIS is a trademark of the QGIS project. Temperature values are provided by the FortyGuard Temperature API.</footer>
+</div>
