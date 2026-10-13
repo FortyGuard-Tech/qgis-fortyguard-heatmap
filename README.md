@@ -53,8 +53,6 @@ Two options. Option A is what a normal user does; option B is for development.
 3. Go to the **Installed** tab and make sure **FortyGuard Heatmap** is ticked.
 4. A toolbar button and **Plugins ▸ FortyGuard Heatmap** menu entry appear.
 
-بالعربي المصري: افتح QGIS، من قايمة Plugins اختار Manage and Install Plugins، بعدين Install from ZIP، اختار ملف الـ ZIP اللي في فولدر dist ودوس Install. بعد كده في تبويب Installed اتأكد إن "FortyGuard Heatmap" عليه علامة صح. هتلاقي زرار جديد في شريط الأدوات.
-
 ### Option B – link the source folder (development)
 
 ```bash
@@ -64,8 +62,6 @@ scripts/install_dev.sh          # symlinks fortyguard_heatmap into the active pr
 The script reads `~/Library/Application Support/QGIS/QGIS3/profiles/profiles.ini`
 to find the active profile (currently `default`). After editing code, use the
 *Plugin Reloader* plugin or restart QGIS. Remove with `scripts/install_dev.sh --remove`.
-
-بالعربي: السكريبت ده بيعمل لينك من فولدر البلجن لفولدر البلجنز بتاع QGIS، فأي تعديل في الكود بيظهر بعد ما تعمل reload أو تقفل وتفتح QGIS.
 
 ---
 
@@ -88,8 +84,6 @@ to find the active profile (currently `default`). After editing code, use the
 Demo results are saved as `fortyguard_DEMO_*.geojson` + `.meta.json` in the
 output folder (default `~/Documents/FortyGuard Heatmaps`). They are synthetic
 and are never presented as a FortyGuard analysis.
-
-بالعربي: علّم على Demo Mode، دوس زرار "Add demo AOI layer"، بعدين "Generate DEMO Heatmap". هتلاقي طبقة جديدة اسمها بيبدأ بـ [DEMO - synthetic] متلوّنة من الأزرق للأحمر. دي بيانات مصطنعة للتجربة بس مش نتيجة حقيقية من FortyGuard.
 
 ---
 
@@ -124,8 +118,6 @@ area caps are 10 mi² (Basic/Startup) or 50 mi² (Premium).
 7. When completed, the GeoJSON is saved as `fortyguard_tcm_<request>_<id>_<time>.geojson`
    with a `.meta.json` sidecar (stats, request summary, no key) and the styled
    layer is added. Existing files are never overwritten.
-
-بالعربي: شيل علامة Demo Mode، حط الـ API key، اختار الطبقة وعلّم على مضلع واحد بس على الخريطة، اختار التاريخ والدقة، ودوس Generate Heatmap. هيطلعلك رسالة تأكيد عشان الطلب بيستهلك credits. استنى لحد ما الحالة تبقى Completed وهتتضاف الطبقة لوحدها.
 
 ### Headless live check (for automated verification)
 
