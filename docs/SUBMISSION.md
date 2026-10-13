@@ -52,11 +52,6 @@ Three different states, in order. None of them has happened yet.
 7. After approval, verify in QGIS: Plugins ▸ Manage and Install Plugins ▸
    Settings ▸ *Show also experimental plugins* ▸ All ▸ search "FortyGuard".
 
-بالمصري: اعمل حساب OSGeo ID من id.osgeo.org، بعدين ادخل على plugins.qgis.org
-وارفع ملف الـ ZIP من صفحة Upload a plugin. هيجيلك إيميلين: تأكيد الرفع ونتيجة
-الفحص الأمني. بعد كده هتستنى الموافقة اليدوية. البلجن مش هيظهر في QGIS غير
-بعد الموافقة.
-
 ## 4. Upload via XML-RPC (automated, after the OSGeo ID exists)
 
 ```bash
