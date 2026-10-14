@@ -3,11 +3,16 @@
 Goal: users open **Plugins ▸ Manage and Install Plugins…**, search "FortyGuard",
 select **FortyGuard Heatmap**, click **Install**, then enter their own API key.
 
-Three different states, in order. None of them has happened yet.
+Three different states, in order. Status on 2026-10-14: **submitted** (version
+0.3.2 uploaded by mustafahamdy-FG; plugin page
+https://plugins.qgis.org/plugins/fortyguard_heatmap/ , Plugin ID 6611). Not
+approved and not publicly available yet. The plugin e-mail
+(support@fortyguard.com) must be confirmed via the e-mail sent by
+plugins.qgis.org before approval is possible.
 
 | State | Meaning | Who/what moves it forward |
 |---|---|---|
-| **Submitted** | The ZIP was uploaded to plugins.qgis.org. It is invisible to users. | A person with an OSGeo ID uploads (web form or XML-RPC). |
+| **Submitted** | The ZIP was uploaded to plugins.qgis.org. It is invisible to users. | **Done 2026-10-14** (0.3.2, web form). |
 | **Approved** | The automatic security scan passed and a volunteer reviewer approved the version. | plugins.qgis.org staff/volunteers; minutes to days, weekdays. |
 | **Publicly available** | The version appears in the repository feed and therefore in the QGIS Plugin Manager. | Automatic after approval. Experimental versions are shown only to users who enable *Show also experimental plugins*. |
 
