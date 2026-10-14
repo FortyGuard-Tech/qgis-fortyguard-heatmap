@@ -4,7 +4,7 @@ qgisMinimumVersion=3.34
 qgisMaximumVersion=3.99
 description=FortyGuard heat analysis for a selected polygon: temperature heatmaps (°C), exceedance and persistence hours above a threshold, and peak temperature time, as styled layers.
 about=Select one polygon in your project, enter your own FortyGuard API key, choose the analysis (Temperature/Snapshot, Exceedance, Persistence or Peak temperature time), the time window and resolution, and click Generate Heatmap. The plugin submits one request to the FortyGuard Temperature API (POST /v1/heatmap), polls the job status without blocking QGIS, saves the completed GeoJSON tiles next to your other data and adds a styled layer (degrees Celsius for temperature, hours for exceedance/persistence, UTC hour of day for peak time). A "Check key and credits" button shows your plan and remaining credits. An optional, clearly labelled Demo Mode replays synthetic data offline. Requirements: a FortyGuard API key (https://www.fortyguard.com/api-pricing); completed requests consume credits; documented coverage is the United States. No external Python dependencies (uses QGIS's own network manager). Tested on macOS 27 (Apple Silicon) with QGIS 3.44.15 LTR only; Windows, Linux and QGIS 4 (Qt 6) are not yet tested, so this release is marked experimental.
-version=0.3.1
+version=0.3.2
 author=FortyGuard
 email=support@fortyguard.com
 tracker=https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/issues
@@ -17,7 +17,8 @@ experimental=True
 deprecated=False
 hasProcessingProvider=no
 server=False
-changelog=0.3.1 - Time zones confirmed by FortyGuard: start/end times are the local time of the area, peak temperature hours are UTC; dialog text and docs updated.
-    0.3.0 - Heat-analysis modes from the FortyGuard Forma extension: Temperature/Snapshot, Exceedance (total hours above a threshold), Persistence (longest continuous run above it) and Peak temperature time (hour of day, UTC), each as its own styled layer with the right legend units; threshold input in °C (default 35, sent with direction "above"); Calendar month time option (submitted as a range of days, leap years and partial months handled); analysis-specific summaries (valid tiles, % of valid tiles above 0 h, maximum duration, most common peak hour); synthetic demo fixtures for all modes.
+changelog=0.3.2 - Fixed metadata.txt parsing on plugins.qgis.org (a percent sign in the changelog); no code change.
+    0.3.1 - Time zones confirmed by FortyGuard: start/end times are the local time of the area, peak temperature hours are UTC; dialog text and docs updated.
+    0.3.0 - Heat-analysis modes from the FortyGuard Forma extension: Temperature/Snapshot, Exceedance (total hours above a threshold), Persistence (longest continuous run above it) and Peak temperature time (hour of day, UTC), each as its own styled layer with the right legend units; threshold input in °C (default 35, sent with direction "above"); Calendar month time option (submitted as a range of days, leap years and partial months handled); analysis-specific summaries (valid tiles, share of valid tiles above 0 h, maximum duration, most common peak hour); synthetic demo fixtures for all modes.
     0.2.0 - Release candidate for external users: FortyGuard icon, getting-started help with documentation links, "Check key and credits" button, production API by default with the development environment moved to a separate Developer settings section (key is cleared when the environment changes), safer default output folder, clearer error and credit messages, real dialog request verified. Icon now PNG.
     0.1.0 - First prototype: live request path (submit + bounded polling), Demo Mode, graduated styling, encrypted optional key storage.

@@ -1,4 +1,4 @@
-# FortyGuard Heatmap for QGIS – user guide (0.3.1, experimental)
+# FortyGuard Heatmap for QGIS – user guide (0.3.2, experimental)
 
 Generate FortyGuard temperature heatmaps (tcm, °C) for a polygon in your QGIS
 project and add them as styled layers, using **your own FortyGuard API key**.

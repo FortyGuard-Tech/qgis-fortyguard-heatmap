@@ -1,5 +1,10 @@
 # Changelog – FortyGuard Heatmap (QGIS plugin)
 
+## 0.3.2 – 2026-10-14 (experimental)
+
+- Fixed `metadata.txt` parsing on plugins.qgis.org: a percent sign in the
+  changelog text broke the server-side parser. No code change.
+
 ## 0.3.1 – 2026-10-13 (experimental)
 
 - FortyGuard confirmed the time-zone semantics: `start_time`/`end_time` are the

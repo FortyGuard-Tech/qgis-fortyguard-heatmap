@@ -85,7 +85,7 @@ def main(path, offline=False):
         errors.append("missing %s" % meta)
         md = {}
     else:
-        parser = configparser.ConfigParser(interpolation=None)
+        parser = configparser.ConfigParser()  # default interpolation, exactly like the server ('%' must be '%%')
         try:
             parser.read_file(io.StringIO(zf.read(meta).decode("utf-8")))
         except Exception as exc:
