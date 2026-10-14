@@ -3,8 +3,8 @@
 Goal: users open **Plugins ▸ Manage and Install Plugins…**, search "FortyGuard",
 select **FortyGuard Heatmap**, click **Install**, then enter their own API key.
 
-Three different states, in order. Status on 2026-10-14: **submitted** (version
-0.3.2 uploaded by mustafahamdy-FG; plugin page
+Three different states, in order. Status on 2026-10-14: **submitted and security scan passed** (version
+0.3.3 uploaded by mustafahamdy-FG after 0.3.2 was blocked by Bandit findings; plugin page
 https://plugins.qgis.org/plugins/fortyguard_heatmap/ , Plugin ID 6611). Not
 approved and not publicly available yet. The plugin e-mail
 (support@fortyguard.com) must be confirmed via the e-mail sent by
