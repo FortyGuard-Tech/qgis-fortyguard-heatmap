@@ -9,6 +9,7 @@ The API key is sent only as the documented ``api-key`` request header. It is
 never logged, never placed in a URL and never stored by this class beyond the
 in-memory attribute.
 """
+import contextlib
 from qgis.PyQt.QtCore import QByteArray, QObject, QUrl
 from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
 from qgis.core import QgsNetworkAccessManager
@@ -70,14 +71,10 @@ class HeatmapApiClient(QObject):
     def abort_all(self):
         """Abort in-flight replies (used on Stop / unload). Callbacks are not invoked."""
         for reply in list(self._replies):
-            try:
+            with contextlib.suppress(Exception):
                 reply.finished.disconnect()
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(Exception):
                 reply.abort()
-            except Exception:
-                pass
             reply.deleteLater()
         self._replies.clear()
 

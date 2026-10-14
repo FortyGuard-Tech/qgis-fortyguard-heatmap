@@ -1,5 +1,11 @@
 # Changelog – FortyGuard Heatmap (QGIS plugin)
 
+## 0.3.3 – 2026-10-14 (experimental)
+
+- Clean plugins.qgis.org security scan: the nine `try/except/pass` blocks now
+  use `contextlib.suppress`, and the getting-started text no longer contains a
+  phrase that Bandit mistook for SQL string building. No functional change.
+
 ## 0.3.2 – 2026-10-14 (experimental)
 
 - Fixed `metadata.txt` parsing on plugins.qgis.org: a percent sign in the

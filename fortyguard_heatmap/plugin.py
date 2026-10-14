@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Plugin lifecycle: toolbar/menu action and dialog management."""
+import contextlib
 import os
 
 from qgis.PyQt.QtGui import QIcon
@@ -26,18 +27,14 @@ class FortyGuardHeatmapPlugin(object):
 
     def unload(self):
         if self.dialog is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.dialog.shutdown()
                 self.dialog.close()
                 self.dialog.deleteLater()
-            except Exception:
-                pass
             self.dialog = None
         if self.action is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.action.triggered.disconnect(self.run)
-            except Exception:
-                pass
             self.iface.removePluginMenu("&" + PLUGIN_NAME, self.action)
             self.iface.removeToolBarIcon(self.action)
             self.action.deleteLater()

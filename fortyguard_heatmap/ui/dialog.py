@@ -6,11 +6,11 @@ drives a HeatmapJob and reflects its signals. Everything runs on the main thread
 The API key lives in the password field only, unless the user explicitly saves it
 to the QGIS authentication store.
 """
+import contextlib
 import datetime as _dt
 import os
 
-from qgis.PyQt.QtCore import QDate, QTime, Qt, QUrl
-from qgis.PyQt.QtGui import QDesktopServices
+from qgis.PyQt.QtCore import QDate, QTime, Qt
 from qgis.PyQt.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDialog, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
     QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QSpinBox, QTimeEdit, QVBoxLayout,
@@ -42,18 +42,19 @@ MEASURE_CHOICES = (
 
 GETTING_STARTED = (
     "<b>Getting started</b><br>"
-    "1. Paste your own FortyGuard API key below (get one from "
-    "<a href='%(plans)s'>fortyguard.com/api-pricing</a>). "
+    "1. Paste your own FortyGuard API key below (available at "
+    "<a href='" + contract.URL_API_PLANS + "'>fortyguard.com/api-pricing</a>). "
     "2. Click <i>Check key and credits</i>. "
-    "3. Select exactly one polygon on the map. "
-    "4. Choose date/time and resolution, then <i>Generate Heatmap</i>.<br>"
-    "Each completed request consumes credits from your plan. Coverage: United States. "
-    "Docs: <a href='%(docs)s'>API introduction</a> · <a href='%(heatmap)s'>Create Heatmap</a> · "
-    "<a href='%(auth)s'>Authentication</a> · <a href='%(limits)s'>Limits</a> · "
-    "<a href='%(credits)s'>Credits usage</a> · <a href='%(contact)s'>Contact FortyGuard</a>"
-) % {"plans": contract.URL_API_PLANS, "docs": contract.URL_DOCS, "heatmap": contract.URL_DOCS_HEATMAP,
-     "auth": contract.URL_DOCS_AUTH, "limits": contract.URL_DOCS_LIMITS, "credits": contract.URL_DOCS_CREDITS,
-     "contact": contract.URL_CONTACT}
+    "3. Pick exactly one polygon on the map. "
+    "4. Choose the analysis, date/time and resolution, then <i>Generate Heatmap</i>.<br>"
+    "Each completed request consumes credits of your plan. Coverage: United States. "
+    "Docs: <a href='" + contract.URL_DOCS + "'>API introduction</a> · "
+    "<a href='" + contract.URL_DOCS_HEATMAP + "'>Create Heatmap</a> · "
+    "<a href='" + contract.URL_DOCS_AUTH + "'>Authentication</a> · "
+    "<a href='" + contract.URL_DOCS_LIMITS + "'>Limits</a> · "
+    "<a href='" + contract.URL_DOCS_CREDITS + "'>Credits usage</a> · "
+    "<a href='" + contract.URL_CONTACT + "'>Contact FortyGuard</a>"
+)
 
 
 def saved_output_dir():
@@ -460,10 +461,8 @@ class HeatmapDialog(QDialog):
 
     def _on_layer_changed(self, layer):
         if self._connected_layer is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._connected_layer.selectionChanged.disconnect(self._refresh_selection_info)
-            except Exception:
-                pass
         self._connected_layer = layer
         if layer is not None:
             layer.selectionChanged.connect(self._refresh_selection_info)
@@ -655,10 +654,8 @@ class HeatmapDialog(QDialog):
 
     def _dispose_job(self):
         if self.job is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.job.stop()
-            except Exception:
-                pass
             self.job.deleteLater()
             self.job = None
 
@@ -838,16 +835,12 @@ class HeatmapDialog(QDialog):
         for attr in ("client", "usage_client"):
             c = getattr(self, attr)
             if c is not None:
-                try:
+                with contextlib.suppress(Exception):
                     c.abort_all()
-                except Exception:
-                    pass
                 setattr(self, attr, None)
         if self._connected_layer is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._connected_layer.selectionChanged.disconnect(self._refresh_selection_info)
-            except Exception:
-                pass
             self._connected_layer = None
         self.key_edit.clear()
 

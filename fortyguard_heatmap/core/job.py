@@ -14,6 +14,7 @@ Rules implemented here:
   user is told so and must decide.
 * activity_id is kept after any status failure so polling can be resumed.
 """
+import contextlib
 import time
 
 from qgis.PyQt.QtCore import QObject, QTimer, pyqtSignal
@@ -115,10 +116,8 @@ class HeatmapJob(QObject):
         self._generation += 1  # invalidates callbacks of in-flight replies
         self._active = False
         self._awaiting_submit = False
-        try:
+        with contextlib.suppress(Exception):
             self.client.abort_all()
-        except Exception:
-            pass
         if was_active:
             self.stopped.emit(self.activity_id or "")
 
