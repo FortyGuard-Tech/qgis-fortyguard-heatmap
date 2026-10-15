@@ -1,5 +1,9 @@
 # Changelog – FortyGuard Heatmap (QGIS plugin)
 
+## 0.3.5 – 2026-10-15 (experimental)
+
+- Getting-started text uses an explicit dark colour so it is readable in macOS dark mode.
+
 ## 0.3.4 – 2026-10-15 (experimental)
 
 - The dialog no longer overflows small screens: the settings area scrolls and the

@@ -115,7 +115,8 @@ class HeatmapDialog(QDialog):
         intro.setWordWrap(True)
         intro.setOpenExternalLinks(True)
         intro.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        intro.setStyleSheet("background: #eef5fb; border: 1px solid #c9dcec; border-radius: 4px; padding: 6px;")
+        intro.setStyleSheet("background: #eef5fb; color: #15232e; border: 1px solid #c9dcec; border-radius: 4px; "
+                            "padding: 6px;")  # explicit text colour so it stays readable in dark themes
         root.addWidget(intro)
 
         # --- API key
