@@ -46,7 +46,15 @@ dist/                      built ZIP and in-app check artefacts
 
 Two options. Option A is what a normal user does; option B is for development.
 
-### Option A – install the ZIP
+### Option A – install from the QGIS Plugin Manager (official repository)
+
+The plugin is listed at https://plugins.qgis.org/plugins/fortyguard_heatmap/ (experimental).
+
+1. In QGIS: **Plugins ▸ Manage and Install Plugins… ▸ Settings** ▸ tick **Show also experimental plugins**.
+2. **All** tab ▸ search "FortyGuard" ▸ **FortyGuard Heatmap** ▸ **Install Plugin**.
+3. The toolbar button and **Plugins ▸ FortyGuard Heatmap** menu entry appear.
+
+### Option A2 – install the ZIP (offline)
 
 1. Build or take the ZIP: `dist/fortyguard_heatmap-0.1.0.zip` (rebuild with `scripts/package.sh`).
 2. In QGIS: **Plugins ▸ Manage and Install Plugins… ▸ Install from ZIP**, choose the ZIP, click **Install Plugin**.

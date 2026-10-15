@@ -31,6 +31,16 @@ on plain system Python without QGIS).
 | `scripts/qgis_live_dialog_check.py` (0.2.0, real tcm request through the dialog) | confirmation box, submission, polling, 150 real tiles, styling, file without key, project reopen | `dist/live_dialog_report.json`, `dist/live_dialog_screenshot.png` |
 | `scripts/qgis_render_result.py` | **real live exceedance result** loads and styles through the plugin's output/styling code: 7 classes `1.0 - 1.7 h … 5.3 - 6.0 h`, API stats shown | `dist/render_result_report.json`, `dist/render_result_exceedance_canvas.png` |
 
+### 2c. Install from the official QGIS Plugin Repository – **passed** (2026-10-15)
+
+Inside QGIS 3.44.15, with the development symlink removed, a `--code` script used
+the Plugin Manager API (`pyplugin_installer`) with *Show also experimental plugins*
+enabled: the official repository lists **FortyGuard Heatmap 0.3.3 (experimental)**,
+`installPlugin(..., stable=False)` installed it into the default profile, the plugin
+loaded and started, `metadata.txt` reports 0.3.3, and the dialog opened.
+Evidence: `dist/pm_install_report.json`. The ZIP served by plugins.qgis.org is
+byte-identical to `dist/fortyguard_heatmap-0.3.3.zip`.
+
 ## 3. Real API validation – executed (development environment, dev key)
 
 | Request | Result |

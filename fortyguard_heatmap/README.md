@@ -8,8 +8,9 @@ QGIS 4 (Qt 6) are not yet tested.
 
 ## Install
 
-1. QGIS ▸ **Plugins ▸ Manage and Install Plugins… ▸ Install from ZIP** ▸ choose
-   `fortyguard_heatmap-<version>.zip` ▸ **Install Plugin**.
+1. QGIS ▸ **Plugins ▸ Manage and Install Plugins…** ▸ **Settings** ▸ tick *Show also
+   experimental plugins* ▸ **All** ▸ search "FortyGuard" ▸ **Install Plugin**.
+   (Offline: **Install from ZIP** with `fortyguard_heatmap-<version>.zip`.)
 2. In the **Installed** tab make sure *FortyGuard Heatmap* is ticked.
 3. Click the FortyGuard button in the toolbar (or **Plugins ▸ FortyGuard Heatmap**).
 

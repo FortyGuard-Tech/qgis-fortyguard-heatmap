@@ -3,8 +3,11 @@
 Goal: users open **Plugins ▸ Manage and Install Plugins…**, search "FortyGuard",
 select **FortyGuard Heatmap**, click **Install**, then enter their own API key.
 
-Three different states, in order. Status on 2026-10-14: **submitted and security scan passed** (version
-0.3.3 uploaded by mustafahamdy-FG after 0.3.2 was blocked by Bandit findings; plugin page
+Three different states, in order. Status on 2026-10-15: **approved and publicly available** (version 0.3.3,
+experimental; listed in the QGIS plugin feed, download served by plugins.qgis.org
+is byte-identical to `dist/fortyguard_heatmap-0.3.3.zip`). History: 0.3.2 was
+blocked by Bandit findings; 0.3.3 passed the scan; e-mail confirmed; approved
+2026-10-15 (version uploaded by mustafahamdy-FG; plugin page
 https://plugins.qgis.org/plugins/fortyguard_heatmap/ , Plugin ID 6611). Not
 approved and not publicly available yet. The plugin e-mail
 (support@fortyguard.com) must be confirmed via the e-mail sent by
@@ -13,8 +16,8 @@ plugins.qgis.org before approval is possible.
 | State | Meaning | Who/what moves it forward |
 |---|---|---|
 | **Submitted** | The ZIP was uploaded to plugins.qgis.org. It is invisible to users. | **Done 2026-10-14** (0.3.2, web form). |
-| **Approved** | The automatic security scan passed and a volunteer reviewer approved the version. | plugins.qgis.org staff/volunteers; minutes to days, weekdays. |
-| **Publicly available** | The version appears in the repository feed and therefore in the QGIS Plugin Manager. | Automatic after approval. Experimental versions are shown only to users who enable *Show also experimental plugins*. |
+| **Approved** | The automatic security scan passed and a volunteer reviewer approved the version. | **Done 2026-10-15.** |
+| **Publicly available** | The version appears in the repository feed and therefore in the QGIS Plugin Manager. | **Done 2026-10-15** (experimental: users must enable *Show also experimental plugins*). |
 
 ## 1. Status of the requirements (checked 2026-10-13 against the live validator source)
 

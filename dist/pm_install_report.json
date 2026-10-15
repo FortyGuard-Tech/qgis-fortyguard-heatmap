@@ -1,0 +1,33 @@
+{
+  "steps": [
+    {
+      "name": "repository_fetched",
+      "ok": true,
+      "repos": [
+        "QGIS Official Plugin Repository"
+      ]
+    },
+    {
+      "name": "listed_in_plugin_manager",
+      "ok": true,
+      "version": "0.3.3",
+      "experimental": true,
+      "plugin_name": "FortyGuard Heatmap"
+    },
+    {
+      "name": "installed_and_started",
+      "ok": true,
+      "installed_dir": "/Users/mustafahamdy/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins/fortyguard_heatmap"
+    },
+    {
+      "name": "installed_version",
+      "ok": true,
+      "version": "0.3.3"
+    },
+    {
+      "name": "dialog_opens",
+      "ok": true
+    }
+  ],
+  "ok": true
+}
