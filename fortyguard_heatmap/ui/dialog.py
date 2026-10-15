@@ -13,7 +13,8 @@ import os
 from qgis.PyQt.QtCore import QDate, QTime, Qt
 from qgis.PyQt.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDialog, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
-    QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QSpinBox, QTimeEdit, QVBoxLayout,
+    QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSpinBox,
+    QTimeEdit, QVBoxLayout, QWidget,
 )
 from qgis.PyQt.QtGui import QStandardItemModel
 from qgis.core import (
@@ -70,8 +71,9 @@ class HeatmapDialog(QDialog):
         super().__init__(parent or (iface.mainWindow() if iface else None))
         self.iface = iface
         self.setWindowTitle("FortyGuard Heatmap")
-        self.setMinimumWidth(600)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint)
+        self.setMinimumSize(560, 480)
+        self.resize(680, 720)  # fits a 13-inch laptop screen; the settings part scrolls
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint)
 
         self.job = None
         self.client = None
@@ -97,7 +99,17 @@ class HeatmapDialog(QDialog):
     # ------------------------------------------------------------------ UI
 
     def _build_ui(self):
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(6, 6, 6, 6)
+        # All settings live in a scrollable area; the request buttons and status stay pinned below.
+        content = QWidget()
+        root = QVBoxLayout(content)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setWidget(content)
+        outer.addWidget(scroll, 1)
 
         intro = QLabel(GETTING_STARTED)
         intro.setWordWrap(True)
@@ -295,7 +307,9 @@ class HeatmapDialog(QDialog):
         f.addRow("", dev_hint)
         root.addWidget(self.dev_group)
 
-        # --- Actions / status
+        root.addStretch(1)
+
+        # --- Actions / status (pinned below the scroll area, always visible)
         act = QGroupBox("Request")
         v = QVBoxLayout(act)
         btns = QHBoxLayout()
@@ -332,9 +346,11 @@ class HeatmapDialog(QDialog):
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(500)
-        self.log.setMinimumHeight(100)
+        self.log.setMinimumHeight(60)
+        self.log.setMaximumHeight(110)
+        self.log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         v.addWidget(self.log)
-        root.addWidget(act)
+        outer.addWidget(act, 0)
 
         notice = QLabel(
             "Using this plugin requires a FortyGuard API key with an appropriate plan. A completed request consumes "
@@ -343,7 +359,7 @@ class HeatmapDialog(QDialog):
             "tcm values are in °C. Support: %s" % contract.SUPPORT_EMAIL)
         notice.setWordWrap(True)
         notice.setStyleSheet("color: #555; font-size: 11px;")
-        root.addWidget(notice)
+        outer.addWidget(notice, 0)
 
     def _wire(self):
         self.show_key_check.toggled.connect(

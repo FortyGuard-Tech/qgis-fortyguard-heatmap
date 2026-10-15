@@ -1,5 +1,11 @@
 # Changelog – FortyGuard Heatmap (QGIS plugin)
 
+## 0.3.4 – 2026-10-15 (experimental)
+
+- The dialog no longer overflows small screens: the settings area scrolls and the
+  Generate / Stop Waiting / Check Again buttons, status and log stay pinned at the
+  bottom. Default size 680×720, resizable and maximisable.
+
 ## 0.3.3 – 2026-10-14 (experimental)
 
 - Clean plugins.qgis.org security scan: the nine `try/except/pass` blocks now
