@@ -1,4 +1,10 @@
-# Changelog – FortyGuard Heatmap (QGIS plugin)
+# Changelog – FortyGuard Heatmap Layer (QGIS plugin)
+
+## 0.3.6 – 2026-10-16 (experimental)
+
+- Renamed to **FortyGuard Heatmap Layer**. New listing description and about text:
+  FortyGuard positioning, the four products, a data-center example and the API
+  documentation link. No functional change.
 
 ## 0.3.5 – 2026-10-15 (experimental)
 

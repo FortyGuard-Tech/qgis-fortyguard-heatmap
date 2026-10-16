@@ -30,7 +30,7 @@ from ..core.job import HeatmapJob
 from ..core.payload import ValidationError
 from ..core.responses import ApiError
 
-LOG_TAG = "FortyGuard Heatmap"
+LOG_TAG = "FortyGuard Heatmap Layer"
 SETTING_MEASURE = "fortyguard_heatmap/preferred_measure"
 SETTING_DEADLINE = "fortyguard_heatmap/deadline_minutes"
 FILTER_MONTH = "month"  # UI-only choice; submitted as filter_type 4 with the month's first/last dates
@@ -70,7 +70,7 @@ class HeatmapDialog(QDialog):
     def __init__(self, iface, parent=None):
         super().__init__(parent or (iface.mainWindow() if iface else None))
         self.iface = iface
-        self.setWindowTitle("FortyGuard Heatmap")
+        self.setWindowTitle("FortyGuard Heatmap Layer")
         self.setMinimumSize(560, 480)
         self.resize(680, 720)  # fits a 13-inch laptop screen; the settings part scrolls
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint)
@@ -419,7 +419,7 @@ class HeatmapDialog(QDialog):
         for b in (self.load_key_btn, self.save_key_btn, self.forget_key_btn):
             b.setEnabled(not on and credentials.auth_available())
         self.generate_btn.setText("Generate DEMO Heatmap (synthetic)" if on else "Generate Heatmap")
-        self.setWindowTitle("FortyGuard Heatmap - DEMO MODE" if on else "FortyGuard Heatmap")
+        self.setWindowTitle("FortyGuard Heatmap Layer - DEMO MODE" if on else "FortyGuard Heatmap Layer")
 
     def _on_environment_changed(self, _index):
         # Never reuse a key across environments.
@@ -711,7 +711,7 @@ class HeatmapDialog(QDialog):
         if kind == "auth":
             message += " Tip: use 'Check key and credits' to verify the key for the selected environment."
         if self.iface:
-            self.iface.messageBar().pushMessage("FortyGuard Heatmap", message, level=Qgis.Critical, duration=15)
+            self.iface.messageBar().pushMessage("FortyGuard Heatmap Layer", message, level=Qgis.Critical, duration=15)
 
     def _on_completed(self, map_data, stats_data):
         self.last_map_data = map_data
@@ -758,7 +758,7 @@ class HeatmapDialog(QDialog):
                 self.iface.mapCanvas().setExtent(self.iface.mapCanvas().mapSettings().layerExtentToOutputExtent(layer, layer.extent()))
                 self.iface.mapCanvas().refresh()
                 self.iface.messageBar().pushMessage(
-                    "FortyGuard Heatmap",
+                    "FortyGuard Heatmap Layer",
                     ("DEMO layer added (synthetic data, not a FortyGuard analysis)." if self.last_demo
                      else "Heatmap layer added: %s" % name), level=Qgis.Success, duration=8)
         except ApiError as exc:
@@ -842,7 +842,7 @@ class HeatmapDialog(QDialog):
 
     def _show_error(self, text):
         self.log_line("ERROR: %s" % text, Qgis.Warning)
-        QMessageBox.warning(self, "FortyGuard Heatmap", text)
+        QMessageBox.warning(self, "FortyGuard Heatmap Layer", text)
 
     # ------------------------------------------------------------ cleanup
 

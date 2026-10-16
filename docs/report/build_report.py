@@ -45,19 +45,19 @@ def table(rows, col_widths, header=True):
 
 def footer(canvas, doc):
     canvas.saveState(); canvas.setFont("Helvetica", 8); canvas.setFillColor(MUTED)
-    canvas.drawString(20 * mm, 12 * mm, "FortyGuard Heatmap for QGIS - Project Report - 16 October 2026")
+    canvas.drawString(20 * mm, 12 * mm, "FortyGuard Heatmap Layer for QGIS - Project Report - 16 October 2026")
     canvas.drawRightString(W - 20 * mm, 12 * mm, "Page %d" % doc.page); canvas.restoreState()
 
 doc = SimpleDocTemplate(OUT, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=20 * mm,
-                        title="FortyGuard Heatmap for QGIS - Project Report", author="FortyGuard")
+                        title="FortyGuard Heatmap Layer for QGIS - Project Report", author="FortyGuard")
 s = []
 
 # ---------------- Title page
 s += [Spacer(1, 30 * mm), img("icon.png", 28 * mm, 28 * mm), Spacer(1, 8 * mm),
-      Paragraph("FortyGuard Heatmap for QGIS", TITLE),
-      Paragraph("Project report: a QGIS plugin that brings FortyGuard heat analysis to any map project", SUB),
+      Paragraph("FortyGuard Heatmap Layer for QGIS", TITLE),
+      Paragraph("Project report: a QGIS plugin that brings FortyGuard hyper-local temperature intelligence to any map project", SUB),
       Spacer(1, 10 * mm),
-      table([["Plugin version", "0.3.5 (0.3.3 is the version currently approved and public on plugins.qgis.org; 0.3.5 is uploaded and awaiting approval)"],
+      table([["Plugin version", "0.3.6 (0.3.3 is the version currently approved and public on plugins.qgis.org; newer versions are uploaded and awaiting approval)"],
              ["Status", "Published in the official QGIS Plugin Repository (experimental), 15 October 2026"],
              ["Source code", "https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap (GPL-2.0-or-later)"],
              ["Listing", "https://plugins.qgis.org/plugins/fortyguard_heatmap/"],
@@ -68,11 +68,22 @@ s += [Spacer(1, 30 * mm), img("icon.png", 28 * mm, 28 * mm), Spacer(1, 8 * mm),
 
 # ---------------- 1 Summary
 s += [Paragraph("1. Summary", H1),
-      Paragraph("FortyGuard Heatmap is a QGIS plugin that lets any QGIS user run FortyGuard heat analyses on a polygon in "
+      Paragraph("FortyGuard is a temperature intelligence layer for the physical world: it estimates the local thermal state at "
+                "the level of a site, an asset or a route (a building, a data center, a city block) instead of the nearest weather "
+                "station, so temperature can inform physical decisions and Physical AI systems. One intelligence foundation powers "
+                "four products: Temperature Dashboard (visual exploration for professionals and teams), Temperature API (modeled "
+                "temperature, forecasts and thermal analytics for software, data and geospatial products), Temperature MCP "
+                "(permissioned access for AI agents through the Model Context Protocol) and Temperature Enterprise (recurring, "
+                "governed thermal intelligence across assets, portfolios and organizations).", P), Spacer(1, 6),
+      Paragraph("FortyGuard Heatmap Layer is a QGIS plugin that brings the Temperature API into QGIS: any QGIS user can run FortyGuard heat analyses on a polygon in "
                 "their own map project, using their own FortyGuard API key. The user selects an area, picks an analysis, a time "
                 "window and a resolution, clicks Generate Heatmap, and receives a styled temperature layer in the same project. "
                 "The plugin talks directly to the FortyGuard Temperature API (POST /v1/heatmap, GET /v1/status/{activity_id}); "
                 "no intermediate backend is involved.", P), Spacer(1, 4),
+      Paragraph("Example, a data center site: draw the site boundary with the surrounding blocks. A single-day Temperature layer shows "
+                "which side of the site sits in the hottest tiles; Exceedance with a 35 °C threshold over a summer month counts how many "
+                "hours the surroundings spend above that limit; Persistence shows the longest continuous hot spell. Together they help "
+                "evaluate cooling load, capacity margins and operating constraints before a physical decision is made.", P), Spacer(1, 6),
       Paragraph("What was delivered:", P)]
 s += bullets([
     "A complete, installable QGIS plugin with four analysis modes (Temperature/Snapshot, Exceedance, Persistence, Peak temperature time).",
@@ -91,12 +102,12 @@ s += [Paragraph("2. How users install the plugin", H1),
 s += bullets([
     "Open QGIS and choose <b>Plugins &gt; Manage and Install Plugins...</b>",
     "In <b>Settings</b>, tick <b>Show also experimental plugins</b> (required while the release is marked experimental).",
-    "In the <b>All</b> tab, search for <b>FortyGuard</b>, select <b>FortyGuard Heatmap</b> and click <b>Install Plugin</b>.",
-    "A FortyGuard button appears in the toolbar and under <b>Plugins &gt; FortyGuard Heatmap</b>.",
+    "In the <b>All</b> tab, search for <b>FortyGuard</b>, select <b>FortyGuard Heatmap Layer</b> and click <b>Install Plugin</b>.",
+    "A FortyGuard button appears in the toolbar and under <b>Plugins &gt; FortyGuard Heatmap Layer</b>.",
     "Offline alternative: <b>Install from ZIP</b> with the release file from GitHub (fortyguard_heatmap-&lt;version&gt;.zip).",
 ])
 s += [Spacer(1, 4), img("04_plugin_manager.png", max_h=90 * mm),
-      Paragraph("Figure 2. The QGIS Plugin Manager with FortyGuard Heatmap selected: description, tags, links, versions and the install button.", CAP),
+      Paragraph("Figure 2. The QGIS Plugin Manager with FortyGuard Heatmap Layer selected (listed as FortyGuard Heatmap until the renamed version is approved): description, tags, links, versions and the install button.", CAP),
       img("05_plugins_qgis_org_approved.png", max_h=70 * mm),
       Paragraph("Figure 3. The plugin page on plugins.qgis.org after approval: security scan passed, email confirmed, "
                 "experimental version available.", CAP), PageBreak()]
@@ -187,7 +198,7 @@ s += bullets([
 ])
 s += [Paragraph("10. Open items and next steps", H1)]
 s += bullets([
-    "Approval of 0.3.5 on plugins.qgis.org (uploaded, scan passed, awaiting review). Users on 0.3.3 will see an Upgrade button.",
+    "Approval of the latest upload (0.3.6, renamed FortyGuard Heatmap Layer with the new listing text) on plugins.qgis.org. Users on 0.3.3 will see an Upgrade button.",
     "Windows and Linux test runs, then a release without the experimental flag so the plugin appears in the default Plugin Manager search.",
     "One end-to-end request on the production API with a production key.",
     "Optional: 'below' threshold direction, local-time display of peak hours, other FortyGuard products (satellite, street view, heat intelligence).",
@@ -195,6 +206,7 @@ s += bullets([
 s += [Paragraph("11. Links", H1)]
 s += bullets([
     "Plugin page: https://plugins.qgis.org/plugins/fortyguard_heatmap/",
+    "API documentation: https://docs-api.fortyguard.com/docs/introduction (Create Heatmap: https://docs-api.fortyguard.com/docs/create-heatmap)",
     "Source and releases: https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap",
     "FortyGuard API documentation: https://docs-api.fortyguard.com/docs/introduction",
     "API plans: https://www.fortyguard.com/api-pricing - Support: support@fortyguard.com",

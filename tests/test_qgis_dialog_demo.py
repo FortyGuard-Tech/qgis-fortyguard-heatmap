@@ -80,7 +80,7 @@ class DialogDemoTests(unittest.TestCase):
         plugin.initGui()
         self.assertEqual(len(self.iface.toolbar_actions), 1)
         self.assertEqual(len(self.iface.menu_actions), 1)
-        self.assertEqual(self.iface.toolbar_actions[0].text(), "FortyGuard Heatmap")
+        self.assertEqual(self.iface.toolbar_actions[0].text(), "FortyGuard Heatmap Layer")
         plugin.run()
         self.assertIsNotNone(plugin.dialog)
         self.assertTrue(plugin.dialog.isVisible())
