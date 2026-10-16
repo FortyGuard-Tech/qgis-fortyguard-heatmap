@@ -96,7 +96,7 @@ s += bullets([
     "Offline alternative: <b>Install from ZIP</b> with the release file from GitHub (fortyguard_heatmap-&lt;version&gt;.zip).",
 ])
 s += [Spacer(1, 4), img("04_plugin_manager.png", max_h=90 * mm),
-      Paragraph("Figure 2. The QGIS Plugin Manager listing FortyGuard Heatmap from the official repository.", CAP),
+      Paragraph("Figure 2. The QGIS Plugin Manager with FortyGuard Heatmap selected: description, tags, links, versions and the install button.", CAP),
       img("05_plugins_qgis_org_approved.png", max_h=70 * mm),
       Paragraph("Figure 3. The plugin page on plugins.qgis.org after approval: security scan passed, email confirmed, "
                 "experimental version available.", CAP), PageBreak()]

@@ -3,4 +3,5 @@ streets saved
 heatmap saved 527
 dialog saved Completed - layer added
 manager saved QgsPluginManagerBase
-done
+doneviews [('vwPlugins', 1), ('mOptionsListWidget', 8)]
+manager detail saved
