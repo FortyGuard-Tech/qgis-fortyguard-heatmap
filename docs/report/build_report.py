@@ -83,7 +83,7 @@ s += bullets([
 ])
 s += [Spacer(1, 6), img("02_heatmap_over_streets.png", max_h=95 * mm),
       Paragraph("Figure 1. Real FortyGuard temperature heatmap (tcm, daily mean, 100 m tiles) over downtown Phoenix, Arizona, "
-                "15 July 2024, rendered by the plugin on top of OpenStreetMap in QGIS.", CAP), PageBreak()]
+                "15 July 2024, inside QGIS 3.44: the plugin's layer with its °C legend in the Layers panel, on top of OpenStreetMap.", CAP), PageBreak()]
 
 # ---------------- 2 Install
 s += [Paragraph("2. How users install the plugin", H1),
@@ -123,10 +123,11 @@ s += [Paragraph("4. Result on the map", H1),
                 "the area outline; Figure 6 shows the heatmap the plugin produced for 15 July 2024 at 100 m resolution, with the "
                 "selection layer hidden.", P), Spacer(1, 4),
       img("01_streets_map.png", max_h=92 * mm),
-      Paragraph("Figure 5. OpenStreetMap base map of downtown Phoenix with the selected area outlined.", CAP),
+      Paragraph("Figure 5. QGIS with the OpenStreetMap base map of downtown Phoenix and the selected area outlined in red.", CAP),
       img("02_heatmap_over_streets.png", max_h=92 * mm),
-      Paragraph("Figure 6. FortyGuard tcm heatmap (daily mean, °C) for the same area. Blue tiles are cooler, red tiles are hotter; "
-                "seven graduated classes from 35.6 to 36.4 °C. Data returned by the FortyGuard API, activity b9ebf067.", CAP), PageBreak()]
+      Paragraph("Figure 6. The same QGIS project after Generate Heatmap: the FortyGuard tcm layer (daily mean, °C) with its seven-class "
+                "legend (35.6 to 36.4 °C) in the Layers panel. Blue tiles are cooler, red tiles are hotter. Data returned by the "
+                "FortyGuard API, activity b9ebf067.", CAP), PageBreak()]
 
 # ---------------- 5 Analysis modes
 s += [Paragraph("5. Analysis modes", H1),

@@ -5,3 +5,5 @@ dialog saved Completed - layer added
 manager saved QgsPluginManagerBase
 doneviews [('vwPlugins', 1), ('mOptionsListWidget', 8)]
 manager detail saved
+window streets saved
+window heatmap saved
