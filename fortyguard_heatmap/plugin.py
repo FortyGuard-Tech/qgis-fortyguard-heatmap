@@ -6,7 +6,7 @@ import os
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
-PLUGIN_NAME = "FortyGuard Heatmap Layer"
+PLUGIN_NAME = "FortyGuard Heat Intelligence Layer"
 
 
 class FortyGuardHeatmapPlugin(object):
