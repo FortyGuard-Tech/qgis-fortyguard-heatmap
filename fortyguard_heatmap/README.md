@@ -1,4 +1,4 @@
-# FortyGuard Heat Intelligence Layer for QGIS – user guide (0.4.1, experimental)
+# FortyGuard Temperature Intelligence Layer for QGIS – user guide (0.4.2, experimental)
 
 Generate FortyGuard temperature heatmaps (tcm, °C) for a polygon in your QGIS
 project and add them as styled layers, using **your own FortyGuard API key**.
@@ -11,8 +11,8 @@ QGIS 4 (Qt 6) are not yet tested.
 1. QGIS ▸ **Plugins ▸ Manage and Install Plugins…** ▸ **Settings** ▸ tick *Show also
    experimental plugins* ▸ **All** ▸ search "FortyGuard" ▸ **Install Plugin**.
    (Offline: **Install from ZIP** with `fortyguard_heatmap-<version>.zip`.)
-2. In the **Installed** tab make sure *FortyGuard Heat Intelligence Layer* is ticked.
-3. Click the FortyGuard button in the toolbar (or **Plugins ▸ FortyGuard Heat Intelligence Layer**).
+2. In the **Installed** tab make sure *FortyGuard Temperature Intelligence Layer* is ticked.
+3. Click the FortyGuard button in the toolbar (or **Plugins ▸ FortyGuard Temperature Intelligence Layer**).
 
 ## First heatmap
 

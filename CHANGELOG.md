@@ -1,4 +1,8 @@
-# Changelog – FortyGuard Heat Intelligence Layer (QGIS plugin)
+# Changelog – FortyGuard Temperature Intelligence Layer (QGIS plugin)
+
+## 0.4.2 – 2026-10-16 (experimental)
+
+- Renamed to **FortyGuard Temperature Intelligence Layer**. No functional change.
 
 ## 0.4.1 – 2026-10-16 (experimental)
 
@@ -19,7 +23,7 @@
 
 ## 0.3.6 – 2026-10-16 (experimental)
 
-- Renamed to **FortyGuard Heat Intelligence Layer**. New listing description and about text:
+- Renamed to **FortyGuard Temperature Intelligence Layer**. New listing description and about text:
   FortyGuard positioning, the four products, a data-center example and the API
   documentation link. No functional change.
 

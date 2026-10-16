@@ -49,16 +49,16 @@ def table(rows, col_widths, header=True):
 
 def footer(canvas, doc):
     canvas.saveState(); canvas.setFont("Helvetica", 8); canvas.setFillColor(MUTED)
-    canvas.drawString(20 * mm, 12 * mm, "FortyGuard Heat Intelligence Layer for QGIS - Project Report - 16 October 2026")
+    canvas.drawString(20 * mm, 12 * mm, "FortyGuard Temperature Intelligence Layer for QGIS - Project Report - 16 October 2026")
     canvas.drawRightString(W - 20 * mm, 12 * mm, "Page %d" % doc.page); canvas.restoreState()
 
 doc = SimpleDocTemplate(OUT, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=20 * mm,
-                        title="FortyGuard Heat Intelligence Layer for QGIS - Project Report", author="FortyGuard")
+                        title="FortyGuard Temperature Intelligence Layer for QGIS - Project Report", author="FortyGuard")
 s = []
 
 # ---------------- Title page
 s += [Spacer(1, 30 * mm), img("icon.png", 28 * mm, 28 * mm), Spacer(1, 8 * mm),
-      Paragraph("FortyGuard Heat Intelligence Layer for QGIS", TITLE),
+      Paragraph("FortyGuard Temperature Intelligence Layer for QGIS", TITLE),
       Paragraph("Project report: a QGIS plugin that brings FortyGuard hyper-local temperature intelligence to any map project", SUB),
       Spacer(1, 10 * mm),
       table([["Plugin version", "0.4.0 (0.3.3 is the version currently approved and public on plugins.qgis.org; newer versions are uploaded and awaiting approval)"],
@@ -79,7 +79,7 @@ s += [Paragraph("1. Summary", H1),
                 "temperature, forecasts and thermal analytics for software, data and geospatial products), Temperature MCP "
                 "(permissioned access for AI agents through the Model Context Protocol) and Temperature Enterprise (recurring, "
                 "governed thermal intelligence across assets, portfolios and organizations).", P), Spacer(1, 6),
-      Paragraph("FortyGuard Heat Intelligence Layer is a QGIS plugin that brings the Temperature API into QGIS: any QGIS user can run FortyGuard heat analyses on a polygon in "
+      Paragraph("FortyGuard Temperature Intelligence Layer is a QGIS plugin that brings the Temperature API into QGIS: any QGIS user can run FortyGuard heat analyses on a polygon in "
                 "their own map project, using their own FortyGuard API key. The user selects an area, picks an analysis, a time "
                 "window and a resolution, clicks Generate Heatmap, and receives a styled temperature layer in the same project. "
                 "The plugin talks directly to the FortyGuard Temperature API (POST /v1/heatmap, GET /v1/status/{activity_id}); "
@@ -105,11 +105,11 @@ s += [Paragraph("2. How users install the plugin", H1),
 s += bullets([
     "Open QGIS and choose <b>Plugins &gt; Manage and Install Plugins...</b>",
     "In <b>Settings</b>, tick <b>Show also experimental plugins</b> (required while the release is marked experimental).",
-    "In the <b>All</b> tab, search for <b>FortyGuard</b>, select <b>FortyGuard Heat Intelligence Layer</b> and click <b>Install Plugin</b>.",
-    "A FortyGuard button appears in the toolbar and under <b>Plugins &gt; FortyGuard Heat Intelligence Layer</b>.",
+    "In the <b>All</b> tab, search for <b>FortyGuard</b>, select <b>FortyGuard Temperature Intelligence Layer</b> and click <b>Install Plugin</b>.",
+    "A FortyGuard button appears in the toolbar and under <b>Plugins &gt; FortyGuard Temperature Intelligence Layer</b>.",
     "Offline alternative: <b>Install from ZIP</b> with the release file from GitHub (fortyguard_heatmap-&lt;version&gt;.zip).",
 ])
-s += [Spacer(1, 4), fig("04_plugin_manager.png", "Figure 2. The QGIS Plugin Manager with FortyGuard Heat Intelligence Layer selected (listed as FortyGuard Heatmap until the renamed version is approved): description, tags, links, versions and the install button.", max_h=90 * mm),
+s += [Spacer(1, 4), fig("04_plugin_manager.png", "Figure 2. The QGIS Plugin Manager with FortyGuard Temperature Intelligence Layer selected (listed as FortyGuard Heatmap until the renamed version is approved): description, tags, links, versions and the install button.", max_h=90 * mm),
       fig("05_plugins_qgis_org_approved.png", "Figure 3. The plugin page on plugins.qgis.org after approval: security scan passed, email confirmed, "
                 "experimental version available.", max_h=70 * mm), PageBreak()]
 
@@ -199,7 +199,7 @@ s += bullets([
 ])
 s += [Paragraph("10. Open items and next steps", H1)]
 s += bullets([
-    "Approval of the latest upload (0.4.0: FortyGuard Heat Intelligence Layer, new listing text, smooth surface) on plugins.qgis.org. Users on 0.3.3 will see an Upgrade button.",
+    "Approval of the latest upload (0.4.0: FortyGuard Temperature Intelligence Layer, new listing text, smooth surface) on plugins.qgis.org. Users on 0.3.3 will see an Upgrade button.",
     "Windows and Linux test runs, then a release without the experimental flag so the plugin appears in the default Plugin Manager search.",
     "One end-to-end request on the production API with a production key.",
     "Optional: 'below' threshold direction, local-time display of peak hours, other FortyGuard products (satellite, street view, heat intelligence).",
