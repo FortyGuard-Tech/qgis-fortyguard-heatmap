@@ -30,6 +30,10 @@ def img(name, max_w=W - 40 * mm, max_h=120 * mm):
     scale = min(max_w / iw, max_h / ih)
     return Image(path, iw * scale, ih * scale)
 
+def fig(name, caption, max_h=120 * mm):
+    return KeepTogether([img(name, max_h=max_h), Paragraph(caption, CAP)])
+
+
 def bullets(items):
     return [Paragraph(t, B, bulletText="•") for t in items]
 
@@ -92,9 +96,8 @@ s += bullets([
     "A public source repository with versioned releases, an installation guide, an API contract document and a test report.",
     "Submission to the official QGIS Plugin Repository: security scan passed, email confirmed, approved and publicly listed.",
 ])
-s += [Spacer(1, 6), img("02_heatmap_over_streets.png", max_h=95 * mm),
-      Paragraph("Figure 1. Real FortyGuard temperature heatmap (tcm, daily mean, 100 m tiles) over downtown Phoenix, Arizona, "
-                "15 July 2024, inside QGIS 3.44: the plugin's layer with its °C legend in the Layers panel, on top of OpenStreetMap.", CAP), PageBreak()]
+s += [Spacer(1, 6), fig("02_heatmap_over_streets.png", "Figure 1. Real FortyGuard temperature heatmap (tcm, daily mean, 100 m tiles) over downtown Phoenix, Arizona, "
+                "15 July 2024, inside QGIS 3.44: the plugin's layer with its °C legend in the Layers panel, on top of OpenStreetMap.", max_h=68 * mm), PageBreak()]
 
 # ---------------- 2 Install
 s += [Paragraph("2. How users install the plugin", H1),
@@ -106,11 +109,9 @@ s += bullets([
     "A FortyGuard button appears in the toolbar and under <b>Plugins &gt; FortyGuard Heat Intelligence Layer</b>.",
     "Offline alternative: <b>Install from ZIP</b> with the release file from GitHub (fortyguard_heatmap-&lt;version&gt;.zip).",
 ])
-s += [Spacer(1, 4), img("04_plugin_manager.png", max_h=90 * mm),
-      Paragraph("Figure 2. The QGIS Plugin Manager with FortyGuard Heat Intelligence Layer selected (listed as FortyGuard Heatmap until the renamed version is approved): description, tags, links, versions and the install button.", CAP),
-      img("05_plugins_qgis_org_approved.png", max_h=70 * mm),
-      Paragraph("Figure 3. The plugin page on plugins.qgis.org after approval: security scan passed, email confirmed, "
-                "experimental version available.", CAP), PageBreak()]
+s += [Spacer(1, 4), fig("04_plugin_manager.png", "Figure 2. The QGIS Plugin Manager with FortyGuard Heat Intelligence Layer selected (listed as FortyGuard Heatmap until the renamed version is approved): description, tags, links, versions and the install button.", max_h=90 * mm),
+      fig("05_plugins_qgis_org_approved.png", "Figure 3. The plugin page on plugins.qgis.org after approval: security scan passed, email confirmed, "
+                "experimental version available.", max_h=70 * mm), PageBreak()]
 
 # ---------------- 3 Use
 s += [Paragraph("3. How a heatmap is generated", H1),
@@ -124,21 +125,18 @@ s += bullets([
     "<b>Generate Heatmap</b>: a confirmation shows the environment, area, request and credit cost. The job is polled in the background (QGIS stays responsive); Stop Waiting stops polling only, Check Again resumes the same activity.",
     "<b>Result</b>: GeoJSON saved (never overwritten) with a metadata sidecar, loaded as a separately styled layer, statistics shown in the dialog.",
 ])
-s += [Spacer(1, 4), img("03_plugin_dialog_completed.png", max_h=118 * mm),
-      Paragraph("Figure 4. The plugin dialog after a completed request for downtown Phoenix: 527 tiles, daily mean 35.63 to 36.37 °C, "
-                "activity ID and saved file shown in the log.", CAP), PageBreak()]
+s += [Spacer(1, 4), fig("03_plugin_dialog_completed.png", "Figure 4. The plugin dialog after a completed request for downtown Phoenix: 527 tiles, daily mean 35.63 to 36.37 °C, "
+                "activity ID and saved file shown in the log.", max_h=118 * mm), PageBreak()]
 
 # ---------------- 4 Results
 s += [Paragraph("4. Result on the map", H1),
       Paragraph("The test area is a 5.16 km² (1.99 mi²) rectangle over downtown Phoenix, Arizona. Figure 5 shows the base map with "
                 "the area outline; Figure 6 shows the heatmap the plugin produced for 15 July 2024 at 100 m resolution, with the "
                 "selection layer hidden.", P), Spacer(1, 4),
-      img("01_streets_map.png", max_h=92 * mm),
-      Paragraph("Figure 5. QGIS with the OpenStreetMap base map of downtown Phoenix and the selected area outlined in red.", CAP),
-      img("02_heatmap_over_streets.png", max_h=92 * mm),
-      Paragraph("Figure 6. The same QGIS project after Generate Heatmap: the FortyGuard tcm layer (daily mean, °C) with its seven-class "
+      fig("01_streets_map.png", "Figure 5. QGIS with the OpenStreetMap base map of downtown Phoenix and the selected area outlined in red.", max_h=92 * mm),
+      fig("02_heatmap_over_streets.png", "Figure 6. The same QGIS project after Generate Heatmap: the FortyGuard tcm layer (daily mean, °C) with its seven-class "
                 "legend (35.6 to 36.4 °C) in the Layers panel. Blue tiles are cooler, red tiles are hotter. Data returned by the "
-                "FortyGuard API, activity b9ebf067.", CAP), PageBreak()]
+                "FortyGuard API, activity b9ebf067.", max_h=92 * mm), PageBreak()]
 
 # ---------------- 5 Analysis modes
 s += [Paragraph("5. Analysis modes", H1),
@@ -157,13 +155,11 @@ s += bullets([
     "Each result is its own layer, named with the analysis, dates, resolution and threshold.",
     "Appearance: Smooth surface (default, dashboard-like continuous raster, tiles kept hidden) or Tiles only.",
 ])
-s += [Spacer(1, 4), img("07_smooth_surface_phoenix.png", max_h=85 * mm),
-      Paragraph("Figure 7a. Smooth surface appearance (0.4.0): the same 527 Phoenix tiles interpolated into a continuous raster, "
+s += [Spacer(1, 4), fig("07_smooth_surface_phoenix.png", "Figure 7a. Smooth surface appearance (0.4.0): the same 527 Phoenix tiles interpolated into a continuous raster, "
                 "clipped to the area, with the exact tiles layer kept hidden underneath. Presentation only; values between tile "
-                "centres are estimates.", CAP),
-      img("06_exceedance_live_result.png", max_h=70 * mm),
-      Paragraph("Figure 7b. Live Exceedance result (hours above 35 °C, 15-21 July 2024, lower Manhattan test area) rendered with the "
-                "plugin's hours legend. Returned by the FortyGuard API, activity d0439dfd.", CAP), PageBreak()]
+                "centres are estimates.", max_h=85 * mm),
+      fig("06_exceedance_live_result.png", "Figure 7b. Live Exceedance result (hours above 35 °C, 15-21 July 2024, lower Manhattan test area) rendered with the "
+                "plugin's hours legend. Returned by the FortyGuard API, activity d0439dfd.", max_h=60 * mm), Spacer(1, 8)]
 
 # ---------------- 6 Technical
 s += [Paragraph("6. Technical design", H1)]
@@ -190,7 +186,7 @@ s += [Paragraph("8. Publication timeline", H1),
              ["13 Oct 2026", "First live requests (dev); release candidate 0.2.0; public GitHub repository created; analysis modes 0.3.0; time zones confirmed by the API team (0.3.1)"],
              ["14 Oct 2026", "OSGeo account; 0.3.2 uploaded and blocked by the security scan; 0.3.3 uploaded and passed; plugin email confirmed"],
              ["15 Oct 2026", "0.3.3 approved and publicly listed; Plugin Manager install verified; 0.3.4/0.3.5 (laptop-screen layout, dark-theme text) released on GitHub and uploaded"]],
-            [30 * mm, W - 70 * mm]), PageBreak()]
+            [30 * mm, W - 70 * mm]), Spacer(1, 6)]
 
 # ---------------- 9 Findings / next
 s += [Paragraph("9. API findings reported to the FortyGuard team", H1)]
