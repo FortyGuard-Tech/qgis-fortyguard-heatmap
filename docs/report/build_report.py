@@ -57,7 +57,7 @@ s += [Spacer(1, 30 * mm), img("icon.png", 28 * mm, 28 * mm), Spacer(1, 8 * mm),
       Paragraph("FortyGuard Heat Intelligence Layer for QGIS", TITLE),
       Paragraph("Project report: a QGIS plugin that brings FortyGuard hyper-local temperature intelligence to any map project", SUB),
       Spacer(1, 10 * mm),
-      table([["Plugin version", "0.3.6 (0.3.3 is the version currently approved and public on plugins.qgis.org; newer versions are uploaded and awaiting approval)"],
+      table([["Plugin version", "0.4.0 (0.3.3 is the version currently approved and public on plugins.qgis.org; newer versions are uploaded and awaiting approval)"],
              ["Status", "Published in the official QGIS Plugin Repository (experimental), 15 October 2026"],
              ["Source code", "https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap (GPL-2.0-or-later)"],
              ["Listing", "https://plugins.qgis.org/plugins/fortyguard_heatmap/"],
@@ -155,9 +155,14 @@ s += bullets([
     "Calendar month submits the month's first and last day as a range of days (leap years handled, current month clipped).",
     "Zero hours and 00:00 are valid results, not missing data. Percentages in the summary are shares of valid tiles, not of area.",
     "Each result is its own layer, named with the analysis, dates, resolution and threshold.",
+    "Appearance: Smooth surface (default, dashboard-like continuous raster, tiles kept hidden) or Tiles only.",
 ])
-s += [Spacer(1, 4), img("06_exceedance_live_result.png", max_h=80 * mm),
-      Paragraph("Figure 7. Live Exceedance result (hours above 35 °C, 15-21 July 2024, lower Manhattan test area) rendered with the "
+s += [Spacer(1, 4), img("07_smooth_surface_phoenix.png", max_h=85 * mm),
+      Paragraph("Figure 7a. Smooth surface appearance (0.4.0): the same 527 Phoenix tiles interpolated into a continuous raster, "
+                "clipped to the area, with the exact tiles layer kept hidden underneath. Presentation only; values between tile "
+                "centres are estimates.", CAP),
+      img("06_exceedance_live_result.png", max_h=70 * mm),
+      Paragraph("Figure 7b. Live Exceedance result (hours above 35 °C, 15-21 July 2024, lower Manhattan test area) rendered with the "
                 "plugin's hours legend. Returned by the FortyGuard API, activity d0439dfd.", CAP), PageBreak()]
 
 # ---------------- 6 Technical
@@ -198,7 +203,7 @@ s += bullets([
 ])
 s += [Paragraph("10. Open items and next steps", H1)]
 s += bullets([
-    "Approval of the latest upload (0.3.6, renamed FortyGuard Heat Intelligence Layer with the new listing text) on plugins.qgis.org. Users on 0.3.3 will see an Upgrade button.",
+    "Approval of the latest upload (0.4.0: FortyGuard Heat Intelligence Layer, new listing text, smooth surface) on plugins.qgis.org. Users on 0.3.3 will see an Upgrade button.",
     "Windows and Linux test runs, then a release without the experimental flag so the plugin appears in the default Plugin Manager search.",
     "One end-to-end request on the production API with a production key.",
     "Optional: 'below' threshold direction, local-time display of peak hours, other FortyGuard products (satellite, street view, heat intelligence).",

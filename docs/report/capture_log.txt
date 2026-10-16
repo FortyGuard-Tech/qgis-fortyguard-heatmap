@@ -7,3 +7,7 @@ doneviews [('vwPlugins', 1), ('mOptionsListWidget', 8)]
 manager detail saved
 window streets saved
 window heatmap saved
+surface {'min': 35.63619613647461, 'max': 36.36642074584961, 'mean': 36.03522872924805, 'rows': 191, 'cols': 200, 'valid_pixels': 32922, 'pixel_size': (0.00013636551357265603, 0.00011342897787658401)}
+surface screenshot saved
+surface {'min': 35.63619613647461, 'max': 36.36642074584961, 'mean': 36.03522872924805, 'rows': 191, 'cols': 200, 'valid_pixels': 32922, 'pixel_size': (0.00013636551357265603, 0.00011342897787658401)}
+surface screenshot saved
