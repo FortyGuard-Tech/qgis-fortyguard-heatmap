@@ -1,0 +1,6 @@
+result file /Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2024-07-15_100m_b9ebf067_20261015_155017.geojson
+streets saved
+heatmap saved 527
+dialog saved Completed - layer added
+manager saved QgsPluginManagerBase
+done
