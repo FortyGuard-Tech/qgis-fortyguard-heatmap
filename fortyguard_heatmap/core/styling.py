@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """Graduated temperature styling for heatmap tile layers."""
+import contextlib
+
 from qgis.PyQt.QtCore import QVariant
 from qgis.PyQt.QtGui import QColor
 from qgis.core import (
@@ -138,7 +140,7 @@ def apply_surface_style(layer, unit_kind, vmin, vmax, opacity=0.75):
         items.append(QgsColorRampShader.ColorRampItem(v, ramp.color(i / float(steps)), "%.1f %s" % (v, unit)))
     ramp_shader.setColorRampItemList(items)
     ramp_shader.setClip(False)
-    try:  # tidy legend: one decimal and the unit next to the colour bar
+    with contextlib.suppress(Exception):  # tidy legend: one decimal and the unit next to the colour bar
         from qgis.core import QgsBasicNumericFormat, QgsColorRampLegendNodeSettings
         legend = QgsColorRampLegendNodeSettings()
         fmt = QgsBasicNumericFormat()
@@ -146,8 +148,6 @@ def apply_surface_style(layer, unit_kind, vmin, vmax, opacity=0.75):
         legend.setNumericFormat(fmt)
         legend.setSuffix(" " + unit if unit else "")
         ramp_shader.setLegendSettings(legend)
-    except Exception:
-        pass
     shader.setRasterShaderFunction(ramp_shader)
     renderer = QgsSingleBandPseudoColorRenderer(layer.dataProvider(), 1, shader)
     renderer.setClassificationMin(vmin)

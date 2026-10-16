@@ -1,5 +1,10 @@
 # Changelog – FortyGuard Heat Intelligence Layer (QGIS plugin)
 
+## 0.4.1 – 2026-10-16 (experimental)
+
+- Security-scan fix: a try/except/pass in the surface legend code replaced by
+  contextlib.suppress. No functional change.
+
 ## 0.4.0 – 2026-10-16 (experimental)
 
 - **Smooth surface appearance** (default): the API tiles are painted onto a fine

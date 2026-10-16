@@ -21,6 +21,16 @@ rsync -a "$PLUGIN_DIR/" "$STAGE/$PLUGIN_DIR/" \
   --exclude '.DS_Store' --exclude '.git*' --exclude '*.env' --exclude '.env*' \
   --exclude '*.key' --exclude 'api_key*' --exclude 'tests' --exclude '*.orig' --exclude '*.swp'
 
+# Safety net: the same Bandit scan plugins.qgis.org runs (blocks on any finding) - when bandit is installed.
+if python3 -m bandit --version >/dev/null 2>&1; then
+  if ! python3 -m bandit -r "$STAGE/$PLUGIN_DIR" -q >/dev/null 2>&1; then
+    echo "!! Refusing to package: Bandit reported findings (plugins.qgis.org would block this version):"
+    python3 -m bandit -r "$STAGE/$PLUGIN_DIR" -q 2>/dev/null | grep -E "Issue|Location" || true
+    exit 1
+  fi
+  echo "Bandit: clean"
+fi
+
 # Safety net: refuse to package anything that looks like a live key.
 if grep -rIE 'fg_live_[A-Za-z0-9]{8,}' "$STAGE" >/dev/null 2>&1; then
   echo "!! Refusing to package: a string that looks like a live API key was found."; exit 1
