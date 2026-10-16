@@ -119,6 +119,15 @@ Each mode is one API request; the API computes the result.
 * The summary shows valid tile counts, the share of valid **tiles** (not area)
   with more than 0 h and the maximum duration, or the most common peak hour.
 
+## 2c. Appearance (0.4.0)
+
+**Smooth surface** (default) interpolates the API tiles into a GeoTIFF raster
+(tile size / 8 pixels, nodata-aware Gaussian blur, clipped to the AOI) and shows
+it with a continuous colour ramp and bilinear resampling; the tiles layer is
+added hidden. **Tiles only** shows the graduated tiles as before. The surface is
+presentation only and is skipped for Peak temperature time (cyclic hours).
+Implementation: `fortyguard_heatmap/core/surface.py` (numpy + GDAL, bundled with QGIS).
+
 ## 3. Run a real request
 
 Before the first live request read `docs/API_CONTRACT.md` → *Plans, credits,

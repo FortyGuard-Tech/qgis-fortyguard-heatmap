@@ -335,3 +335,66 @@ class DialogAnalysisTests(unittest.TestCase):
         self.assertEqual(len(QgsProject.instance().mapLayers()), 4)  # 3 results + demo AOI
         self.assertIn("Persistence hours", b.name())
         self.assertIn("tcm", c.name())
+
+
+@unittest.skipUnless(qgis_env.qgis_available(), "QGIS runtime not available")
+class DialogSmoothSurfaceTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="fg_dialog_surf_")
+        QgsProject.instance().clear()
+        self.iface = FakeIface()
+        self.dlg = HeatmapDialog(self.iface)
+        self.dlg.output_dir.setFilePath(self.tmp)
+        self.dlg.demo_check.setChecked(True)
+        self.dlg.demo_aoi_btn.click()
+
+    def tearDown(self):
+        self.dlg.shutdown()
+        QgsProject.instance().clear()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _run(self):
+        before = set(QgsProject.instance().mapLayers())
+        done = {"done": False}
+        self.dlg.generate_btn.click()
+        self.dlg.job.completed.connect(lambda *a: done.__setitem__("done", True))
+        self.dlg.job.failed.connect(lambda *a: done.__setitem__("done", True))
+        self.assertTrue(pump(done)); pump({"done": False}, 300)
+        return [QgsProject.instance().mapLayer(i) for i in set(QgsProject.instance().mapLayers()) - before]
+
+    def test_smooth_surface_default_adds_raster_and_hides_tiles(self):
+        from qgis.core import QgsRasterLayer, QgsVectorLayer
+        from fortyguard_heatmap.ui.dialog import APPEARANCE_SMOOTH
+        self.dlg.appearance_combo.setCurrentIndex(self.dlg.appearance_combo.findData(APPEARANCE_SMOOTH))
+        new = self._run()
+        rasters = [l for l in new if isinstance(l, QgsRasterLayer)]
+        vectors = [l for l in new if isinstance(l, QgsVectorLayer)]
+        self.assertEqual(len(rasters), 1); self.assertEqual(len(vectors), 1)
+        self.assertTrue(rasters[0].name().endswith("(smooth surface)"))
+        self.assertTrue(rasters[0].name().startswith("[DEMO - synthetic]"))
+        root = QgsProject.instance().layerTreeRoot()
+        self.assertFalse(root.findLayer(vectors[0].id()).isVisible(), "tiles layer added hidden")
+        self.assertTrue(root.findLayer(rasters[0].id()).isVisible())
+        files = os.listdir(self.tmp)
+        self.assertTrue(any(f.endswith("_smooth.tif") for f in files), files)
+        self.assertIn("smooth surface", self.dlg.log.toPlainText())
+        self.assertIs(self.dlg.last_surface_layer, rasters[0])
+
+    def test_tiles_only_option(self):
+        from qgis.core import QgsRasterLayer
+        from fortyguard_heatmap.ui.dialog import APPEARANCE_TILES
+        self.dlg.appearance_combo.setCurrentIndex(self.dlg.appearance_combo.findData(APPEARANCE_TILES))
+        new = self._run()
+        self.assertFalse(any(isinstance(l, QgsRasterLayer) for l in new))
+        self.assertIsNone(self.dlg.last_surface_layer)
+
+    def test_peak_time_has_no_surface(self):
+        from qgis.core import QgsRasterLayer
+        from fortyguard_heatmap.ui.dialog import APPEARANCE_SMOOTH
+        self.dlg.appearance_combo.setCurrentIndex(self.dlg.appearance_combo.findData(APPEARANCE_SMOOTH))
+        self.dlg.analysis_combo.setCurrentIndex(self.dlg.analysis_combo.findData("time_of_measure"))
+        new = self._run()
+        self.assertFalse(any(isinstance(l, QgsRasterLayer) for l in new))
+        self.assertIn("cyclic", self.dlg.log.toPlainText())
+        vec = new[0]
+        self.assertTrue(QgsProject.instance().layerTreeRoot().findLayer(vec.id()).isVisible())

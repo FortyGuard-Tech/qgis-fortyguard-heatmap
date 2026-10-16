@@ -7,14 +7,14 @@ about=About FortyGuard
     FortyGuard is a temperature intelligence layer for the physical world. It estimates the local thermal state at the level of a site, an asset or a route (a building, a data center, a city block) instead of the nearest weather station, so temperature can inform physical decisions and Physical AI systems. One intelligence foundation powers four products: Temperature Dashboard (visual exploration of thermal conditions for professionals and teams), Temperature API (modeled temperature, forecasts and thermal analytics for software, data and geospatial products), Temperature MCP (permissioned access to FortyGuard tools for AI agents through the Model Context Protocol) and Temperature Enterprise (recurring, governed thermal intelligence across assets, portfolios and organizations).
     
     What this plugin does
-    FortyGuard Heat Intelligence Layer brings the Temperature API into QGIS. Select one polygon in your project, enter your own FortyGuard API key, choose an analysis (Temperature / Snapshot, Exceedance, Persistence or Peak temperature time), a time window and a resolution (60, 80 or 100 m), and click Generate Heatmap. The plugin sends one request to the API, polls the job without blocking QGIS, saves the GeoJSON tiles next to your data and adds a styled layer: degrees Celsius for temperature, hours for exceedance and persistence, UTC hour of day for peak time. A Check key and credits button shows your plan and remaining credits, and an optional, clearly labelled Demo Mode replays synthetic data offline.
+    FortyGuard Heat Intelligence Layer brings the Temperature API into QGIS. Select one polygon in your project, enter your own FortyGuard API key, choose an analysis (Temperature / Snapshot, Exceedance, Persistence or Peak temperature time), a time window and a resolution (60, 80 or 100 m), and click Generate Heatmap. The plugin sends one request to the API, polls the job without blocking QGIS, saves the GeoJSON tiles next to your data and adds a styled layer: degrees Celsius for temperature, hours for exceedance and persistence, UTC hour of day for peak time. By default the result is shown as a smooth surface (the same tiles interpolated into a continuous raster, like the FortyGuard dashboard) with the exact tiles layer kept hidden underneath; a tiles-only view is one click away. A Check key and credits button shows your plan and remaining credits, and an optional, clearly labelled Demo Mode replays synthetic data offline.
     
     Example: a data center site
     Draw the site boundary with the surrounding blocks. A single-day Temperature layer shows which side of the site sits in the hottest tiles. Exceedance with a 35 °C threshold over a summer month counts how many hours the surroundings spend above that limit, and Persistence shows the longest continuous hot spell. Together they help evaluate cooling load, capacity margins and operating constraints before a physical decision is made.
     
     Requirements
     A FortyGuard API key (https://www.fortyguard.com/api-pricing). API documentation: https://docs-api.fortyguard.com/docs/introduction. Completed requests consume credits; failed tasks are free. Documented coverage: United States. No external Python dependencies (uses the QGIS network manager). Tested on macOS 27 (Apple Silicon) with QGIS 3.44.15 LTR only; Windows, Linux and QGIS 4 (Qt 6) are not yet tested, so this release is marked experimental.
-version=0.3.6
+version=0.4.0
 author=FortyGuard
 email=support@fortyguard.com
 tracker=https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/issues
@@ -27,7 +27,8 @@ experimental=True
 deprecated=False
 hasProcessingProvider=no
 server=False
-changelog=0.3.6 - Renamed to FortyGuard Heat Intelligence Layer; new description and about text (FortyGuard products, data-center example, API documentation link). No functional change.
+changelog=0.4.0 - Smooth surface appearance (default): the API tiles are interpolated into a fine raster with a continuous colour ramp, clipped to the area, like the FortyGuard dashboard; the tiles layer is kept hidden for exact values. Tiles-only option remains. Not applied to Peak temperature time (cyclic hours).
+    0.3.6 - Renamed to FortyGuard Heat Intelligence Layer; new description and about text (FortyGuard products, data-center example, API documentation link). No functional change.
     0.3.5 - Getting-started text readable in dark themes.
     0.3.4 - Dialog fits laptop screens: settings scroll, Generate/Stop/status stay visible at the bottom; window is resizable and maximisable.
     0.3.3 - Passes the plugins.qgis.org security scan: removed try/except/pass blocks (contextlib.suppress) and a help-text wording that matched a SQL-injection pattern; no functional change.

@@ -1,5 +1,17 @@
 # Changelog – FortyGuard Heat Intelligence Layer (QGIS plugin)
 
+## 0.4.0 – 2026-10-16 (experimental)
+
+- **Smooth surface appearance** (default): the API tiles are painted onto a fine
+  pixel grid (tile size / 8), blurred with a nodata-aware Gaussian kernel,
+  clipped to the area of interest and saved as a GeoTIFF next to the GeoJSON,
+  then shown with a continuous colour ramp and bilinear resampling, like the
+  FortyGuard dashboard. The tiles layer is added hidden so exact values stay
+  available. Presentation only: values between tile centres are estimates.
+- "Tiles only" appearance option kept; the choice is remembered.
+- Not applied to Peak temperature time (hour-of-day values are cyclic).
+- Uses numpy and GDAL bundled with QGIS; no new dependencies.
+
 ## 0.3.6 – 2026-10-16 (experimental)
 
 - Renamed to **FortyGuard Heat Intelligence Layer**. New listing description and about text:

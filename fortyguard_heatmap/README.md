@@ -1,4 +1,4 @@
-# FortyGuard Heat Intelligence Layer for QGIS – user guide (0.3.6, experimental)
+# FortyGuard Heat Intelligence Layer for QGIS – user guide (0.4.0, experimental)
 
 Generate FortyGuard temperature heatmaps (tcm, °C) for a polygon in your QGIS
 project and add them as styled layers, using **your own FortyGuard API key**.
@@ -53,6 +53,16 @@ The **Threshold (°C)** box appears only for Exceedance and Persistence (default
 35 °C, always "above"). Single hour is not offered for these three analyses;
 pick a range of hours, a day, a range of days or a calendar month. Each result
 is added as its own layer; zero hours and 00:00 are real values, not gaps.
+
+## Appearance: smooth surface or tiles
+
+By default the plugin shows a **smooth surface**: the same API tiles painted
+onto a fine grid, blurred and clipped to your area, with a continuous colour
+ramp (like the FortyGuard dashboard). The exact tiles layer is added hidden
+underneath; tick it in the Layers panel to read exact values. Choose
+**Tiles only** in the Appearance box to skip the surface. The surface is a
+presentation layer: values between tile centres are estimates. It is not
+created for Peak temperature time, because hours of the day are cyclic.
 
 ## Costs and coverage
 

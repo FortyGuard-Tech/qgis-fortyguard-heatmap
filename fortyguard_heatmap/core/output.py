@@ -8,7 +8,7 @@ import json
 import os
 import re
 
-from qgis.core import QgsProject, QgsVectorLayer
+from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer
 
 from . import contract
 from .responses import ApiError
@@ -25,6 +25,7 @@ PROP_ACTIVITY = PROP_PREFIX + "activity_id"
 PROP_REQUEST = PROP_PREFIX + "request_summary"
 PROP_ANALYSIS = PROP_PREFIX + "analytic_type"
 PROP_THRESHOLD = PROP_PREFIX + "threshold_c"
+PROP_SURFACE = PROP_PREFIX + "smooth_surface"
 
 
 def default_output_dir():
@@ -131,5 +132,30 @@ def load_layer(geojson_path, name, measure, request_summary, activity_id, demo=F
     else:
         layer.setAbstract("FortyGuard %s heatmap (%s). Activity %s. %s" % (
             analytic_type, unit_label(analytic_type), activity_id, request_summary))
+    (project or QgsProject.instance()).addMapLayer(layer)
+    return layer
+
+
+def surface_layer_name(base_name):
+    return base_name + " (smooth surface)"
+
+
+def load_surface_layer(tif_path, name, measure, request_summary, activity_id, demo=False, project=None,
+                       analytic_type=contract.ANALYTIC_TYPE_TCM, threshold=None):
+    """Load the smooth-surface GeoTIFF as a raster layer and add it to the project."""
+    layer = QgsRasterLayer(tif_path, name, "gdal")
+    if not layer.isValid():
+        raise ApiError("QGIS could not open the smooth surface raster: %s" % tif_path, kind="malformed")
+    layer.setCustomProperty(PROP_DEMO, "true" if demo else "false")
+    layer.setCustomProperty(PROP_MEASURE, measure)
+    layer.setCustomProperty(PROP_UNIT, unit_label(analytic_type))
+    layer.setCustomProperty(PROP_ACTIVITY, "" if demo else (activity_id or ""))
+    layer.setCustomProperty(PROP_REQUEST, request_summary)
+    layer.setCustomProperty(PROP_ANALYSIS, analytic_type)
+    layer.setCustomProperty(PROP_THRESHOLD, "" if threshold is None else str(threshold))
+    layer.setCustomProperty(PROP_SURFACE, "true")
+    layer.setAbstract(("SYNTHETIC DEMO DATA. " if demo else "") +
+                      "Smooth surface interpolated from the FortyGuard %s tiles (presentation only; values between tile "
+                      "centres are estimates). Activity %s. %s" % (analytic_type, activity_id or "-", request_summary))
     (project or QgsProject.instance()).addMapLayer(layer)
     return layer

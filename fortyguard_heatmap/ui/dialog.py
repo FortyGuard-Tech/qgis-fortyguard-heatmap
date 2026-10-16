@@ -23,7 +23,7 @@ from qgis.core import (
 )
 from qgis.gui import QgsCollapsibleGroupBox, QgsFileWidget, QgsMapLayerComboBox
 
-from ..core import contract, credentials, demo, geometry, output, payload, responses, styling
+from ..core import contract, credentials, demo, geometry, output, payload, responses, styling, surface
 from ..core.api_client import HeatmapApiClient
 from ..core.demo import DemoApiClient
 from ..core.job import HeatmapJob
@@ -33,6 +33,9 @@ from ..core.responses import ApiError
 LOG_TAG = "FortyGuard Heat Intelligence Layer"
 SETTING_MEASURE = "fortyguard_heatmap/preferred_measure"
 SETTING_DEADLINE = "fortyguard_heatmap/deadline_minutes"
+SETTING_APPEARANCE = "fortyguard_heatmap/appearance"
+APPEARANCE_TILES = "tiles"
+APPEARANCE_SMOOTH = "smooth"
 FILTER_MONTH = "month"  # UI-only choice; submitted as filter_type 4 with the month's first/last dates
 
 MEASURE_CHOICES = (
@@ -86,6 +89,8 @@ class HeatmapDialog(QDialog):
         self.last_activity_id = ""
         self.last_analytic_type = contract.ANALYTIC_TYPE_TCM
         self.last_threshold = None
+        self.last_aoi_polygon = None
+        self.last_surface_layer = None
         self._connected_layer = None
 
         self._build_ui()
@@ -273,6 +278,16 @@ class HeatmapDialog(QDialog):
         measure_row.addWidget(self.restyle_btn)
         f.addRow("Measure (daily outputs)", measure_row)
 
+        self.appearance_combo = QComboBox()
+        self.appearance_combo.addItem("Smooth surface (interpolated raster, like the dashboard) + tiles layer hidden", APPEARANCE_SMOOTH)
+        self.appearance_combo.addItem("Tiles only (exact API values per tile)", APPEARANCE_TILES)
+        saved_app = QgsSettings().value(SETTING_APPEARANCE, APPEARANCE_SMOOTH)
+        self.appearance_combo.setCurrentIndex(max(0, self.appearance_combo.findData(saved_app)))
+        self.appearance_combo.setToolTip("Smooth surface paints the same API tiles onto a fine pixel grid, blurs them and "
+                                         "clips to your area. Values between tile centres are estimates; the tiles layer keeps "
+                                         "the exact numbers. Not available for Peak temperature time (hours are cyclic).")
+        f.addRow("Appearance", self.appearance_combo)
+
         out_row = QHBoxLayout()
         self.output_dir = QgsFileWidget()
         self.output_dir.setStorageMode(QgsFileWidget.GetDirectory)
@@ -382,6 +397,8 @@ class HeatmapDialog(QDialog):
         self.measure_combo.currentIndexChanged.connect(
             lambda _i: QgsSettings().setValue(SETTING_MEASURE, self.measure_combo.currentData()))
         self.deadline_spin.valueChanged.connect(lambda v: QgsSettings().setValue(SETTING_DEADLINE, v))
+        self.appearance_combo.currentIndexChanged.connect(
+            lambda _i: QgsSettings().setValue(SETTING_APPEARANCE, self.appearance_combo.currentData()))
         self.output_dir.fileChanged.connect(lambda p: QgsSettings().setValue(output.OUTPUT_DIR_SETTING, p))
         self.base_url_combo.currentIndexChanged.connect(self._on_environment_changed)
         self._on_layer_changed(self.layer_combo.currentLayer())
@@ -407,7 +424,7 @@ class HeatmapDialog(QDialog):
                   self.start_time, self.end_time, self.end_date, self.granularity_combo, self.output_dir,
                   self.output_default_btn, self.deadline_spin, self.load_key_btn, self.save_key_btn,
                   self.forget_key_btn, self.demo_aoi_btn, self.base_url_combo, self.check_key_btn,
-                  self.analysis_combo, self.threshold_spin, self.month_edit):
+                  self.analysis_combo, self.threshold_spin, self.month_edit, self.appearance_combo):
             w.setEnabled(not busy)
         if not busy:
             self._on_demo_toggled(self.demo_check.isChecked())
@@ -613,6 +630,7 @@ class HeatmapDialog(QDialog):
             return
 
         self.last_request_summary = payload.describe_request(body)
+        self.last_aoi_polygon = aoi.geometry_geojson
         self.last_analytic_type = body["analytic_type"]
         self.last_threshold = body.get("threshold")
         self.last_demo = demo_mode
@@ -752,10 +770,12 @@ class HeatmapDialog(QDialog):
             summary = responses.numeric_summary(map_data, measure)
             self.log_line("Added layer '%s' (%d tiles, %d classes on '%s' in %s; %d tiles without a value)."
                           % (name, layer.featureCount(), n, measure, output.unit_label(at), summary["missing"]))
+            self._add_smooth_surface(map_data, measure, unit_kind, gpath, name, layer, activity_id, at)
             self._show_stats(stats_data, measure, summary)
             self.status_label.setText("Completed - layer added" + (" (DEMO, synthetic)" if self.last_demo else ""))
             if self.iface:
-                self.iface.mapCanvas().setExtent(self.iface.mapCanvas().mapSettings().layerExtentToOutputExtent(layer, layer.extent()))
+                zoom_layer = self.last_surface_layer or layer
+                self.iface.mapCanvas().setExtent(self.iface.mapCanvas().mapSettings().layerExtentToOutputExtent(zoom_layer, zoom_layer.extent()))
                 self.iface.mapCanvas().refresh()
                 self.iface.messageBar().pushMessage(
                     "FortyGuard Heat Intelligence Layer",
@@ -765,6 +785,37 @@ class HeatmapDialog(QDialog):
             self._show_error(str(exc))
         finally:
             self._set_busy(False)
+
+    def _add_smooth_surface(self, map_data, measure, unit_kind, gpath, base_name, tiles_layer, activity_id, at):
+        """Optional presentation layer: interpolated raster from the same tiles."""
+        self.last_surface_layer = None
+        if self.appearance_combo.currentData() != APPEARANCE_SMOOTH:
+            return
+        if not surface.supports_surface(at):
+            self.log_line("Smooth surface skipped for %s: hour-of-day values are cyclic and cannot be averaged. "
+                          "Showing tiles." % contract.ANALYSIS_LABELS[at], Qgis.Warning)
+            return
+        try:
+            array, gt, st = surface.build_surface(map_data, measure, aoi_polygon=self.last_aoi_polygon)
+            tif = surface.write_geotiff(surface.surface_path_for(gpath), array, gt)
+            sname = output.surface_layer_name(base_name)
+            rl = output.load_surface_layer(tif, sname, measure, self.last_request_summary, activity_id, demo=self.last_demo,
+                                           analytic_type=at, threshold=self.last_threshold)
+            styling.apply_surface_style(rl, unit_kind, st["min"], st["max"])
+            # surface on top, tiles kept but hidden (exact values stay one click away)
+            root = QgsProject.instance().layerTreeRoot()
+            node = root.findLayer(tiles_layer.id())
+            if node is not None:
+                node.setItemVisibilityChecked(False)
+            self.last_surface_layer = rl
+            self.log_line("Added smooth surface '%s' (%d x %d pixels, %d valid; range %.2f to %.2f). The tiles layer was "
+                          "added hidden; presentation only, values between tile centres are estimates."
+                          % (sname, st["cols"], st["rows"], st["valid_pixels"], st["min"], st["max"]))
+        except (ApiError, Exception) as exc:  # a surface failure must never lose the tiles result
+            self.log_line("Smooth surface could not be created (%s). The tiles layer is shown instead." % exc, Qgis.Warning)
+            node = QgsProject.instance().layerTreeRoot().findLayer(tiles_layer.id())
+            if node is not None:
+                node.setItemVisibilityChecked(True)
 
     def _choose_measure(self, measures):
         if contract.FIELD_TEMPERATURE in measures:

@@ -186,3 +186,56 @@ class AnalysisStylingTests(unittest.TestCase):
         self.assertEqual(layer.customProperty(output.PROP_ANALYSIS), "tcm")
         styling.apply_temperature_style(layer, "average_temperature")
         self.assertTrue(all("°C" in r.label() for r in layer.renderer().ranges()))
+
+
+@unittest.skipUnless(qgis_env.qgis_available(), "QGIS runtime not available")
+class SmoothSurfaceTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="fg_surf_")
+        QgsProject.instance().clear()
+
+    def tearDown(self):
+        QgsProject.instance().clear()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_surface_from_daily_fixture(self):
+        from qgis.core import QgsRasterLayer, QgsSingleBandPseudoColorRenderer
+        from fortyguard_heatmap.core import surface
+        map_data, stats = demo.load_fixture("daily")
+        aoi = demo.load_demo_aoi()["geometry"]
+        array, gt, st = surface.build_surface(map_data, "average_temperature", aoi_polygon=aoi)
+        self.assertGreater(st["valid_pixels"], 1000)
+        tile_summary = responses.numeric_summary(map_data, "average_temperature")
+        self.assertGreaterEqual(st["min"], tile_summary["min"] - 1e-3)
+        self.assertLessEqual(st["max"], tile_summary["max"] + 1e-3)
+        tif = surface.write_geotiff(os.path.join(self.tmp, "demo_smooth.tif"), array, gt)
+        layer = output.load_surface_layer(tif, "demo surface", "average_temperature", "2024-07-15 | 100 m", "demo-x", demo=True)
+        self.assertTrue(layer.isValid())
+        self.assertEqual(layer.crs().authid(), "EPSG:4326")
+        self.assertEqual(layer.customProperty(output.PROP_SURFACE), "true")
+        self.assertEqual(layer.customProperty(output.PROP_DEMO), "true")
+        n = styling.apply_surface_style(layer, "celsius", st["min"], st["max"])
+        self.assertEqual(n, 7)
+        self.assertIsInstance(layer.renderer(), QgsSingleBandPseudoColorRenderer)
+        labels = [i.label for i in layer.renderer().shader().rasterShaderFunction().colorRampItemList()]
+        self.assertTrue(all("°C" in l for l in labels), labels)
+        # pixels outside the AOI are nodata: sample a corner of the raster extent
+        prov = layer.dataProvider()
+        ext = layer.extent()
+        from qgis.core import QgsPointXY
+        corner = prov.sample(QgsPointXY(ext.xMinimum() + 1e-6, ext.yMinimum() + 1e-6), 1)
+        self.assertFalse(corner[1], "corner pixel outside the AOI must be nodata")
+        centre = prov.sample(QgsPointXY(ext.center()), 1)
+        self.assertTrue(centre[1])
+        self.assertTrue(st["min"] - 1e-3 <= centre[0] <= st["max"] + 1e-3)
+
+    def test_exceedance_surface_hours_legend(self):
+        from fortyguard_heatmap.core import surface
+        map_data, stats = demo.load_fixture("exceedance")
+        array, gt, st = surface.build_surface(map_data, "value")
+        self.assertEqual(st["min"], 0.0, "zero hours is a real value and sets the minimum")
+        tif = surface.write_geotiff(os.path.join(self.tmp, "exc_smooth.tif"), array, gt)
+        layer = output.load_surface_layer(tif, "exc surface", "value", "x", "demo-x", demo=True, analytic_type="exceedance", threshold=35)
+        styling.apply_surface_style(layer, "hours", st["min"], st["max"])
+        labels = [i.label for i in layer.renderer().shader().rasterShaderFunction().colorRampItemList()]
+        self.assertTrue(all(l.endswith(" h") for l in labels), labels)

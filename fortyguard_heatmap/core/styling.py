@@ -3,13 +3,17 @@
 from qgis.PyQt.QtCore import QVariant
 from qgis.PyQt.QtGui import QColor
 from qgis.core import (
+    QgsBilinearRasterResampler,
     QgsClassificationQuantile,
     QgsClassificationEqualInterval,
+    QgsColorRampShader,
     QgsFillSymbol,
     QgsGradientColorRamp,
     QgsGradientStop,
     QgsGraduatedSymbolRenderer,
+    QgsRasterShader,
     QgsRendererRange,
+    QgsSingleBandPseudoColorRenderer,
 )
 
 from . import contract
@@ -113,3 +117,34 @@ def apply_analysis_style(layer, field_name, unit_kind, classes=7, method=None):
     layer.setRenderer(renderer)
     layer.triggerRepaint()
     return len(renderer.ranges())
+
+
+def apply_surface_style(layer, unit_kind, vmin, vmax, opacity=0.75):
+    """Continuous colour ramp for the smooth-surface raster (same ramps as the tiles).
+
+    Returns the number of legend entries. NODATA stays transparent; bilinear
+    resampling keeps the surface smooth when zooming in.
+    """
+    if vmax <= vmin:
+        vmax = vmin + 1e-6
+    ramp = {"celsius": temperature_ramp, "hours": hours_ramp, "hour_of_day": hour_of_day_ramp}.get(unit_kind, temperature_ramp)()
+    unit = {"celsius": contract.TCM_UNIT, "hours": contract.HOURS_UNIT}.get(unit_kind, "")
+    shader = QgsRasterShader()
+    ramp_shader = QgsColorRampShader(vmin, vmax, ramp, QgsColorRampShader.Interpolated, QgsColorRampShader.Continuous)
+    items = []
+    steps = 6
+    for i in range(steps + 1):
+        v = vmin + (vmax - vmin) * i / float(steps)
+        items.append(QgsColorRampShader.ColorRampItem(v, ramp.color(i / float(steps)), "%.1f %s" % (v, unit)))
+    ramp_shader.setColorRampItemList(items)
+    ramp_shader.setClip(False)
+    shader.setRasterShaderFunction(ramp_shader)
+    renderer = QgsSingleBandPseudoColorRenderer(layer.dataProvider(), 1, shader)
+    renderer.setClassificationMin(vmin)
+    renderer.setClassificationMax(vmax)
+    renderer.setOpacity(opacity)
+    layer.setRenderer(renderer)
+    layer.resampleFilter().setZoomedInResampler(QgsBilinearRasterResampler())
+    layer.resampleFilter().setZoomedOutResampler(QgsBilinearRasterResampler())
+    layer.triggerRepaint()
+    return len(items)
