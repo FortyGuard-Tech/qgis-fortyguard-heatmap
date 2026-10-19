@@ -14,7 +14,7 @@ about=About FortyGuard
     
     Requirements
     A FortyGuard API key (https://www.fortyguard.com/api-pricing). API documentation: https://docs-api.fortyguard.com/docs/introduction. Completed requests consume credits; failed tasks are free. Documented coverage: United States. No external Python dependencies (uses the QGIS network manager). Tested on macOS 27 (Apple Silicon) with QGIS 3.44.15 LTR only; Windows, Linux and QGIS 4 (Qt 6) are not yet tested, so this release is marked experimental.
-version=0.4.2
+version=0.4.3
 author=FortyGuard
 email=support@fortyguard.com
 tracker=https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/issues
@@ -27,7 +27,8 @@ experimental=True
 deprecated=False
 hasProcessingProvider=no
 server=False
-changelog=0.4.2 - Renamed to FortyGuard Temperature Intelligence Layer. No functional change.
+changelog=0.4.3 - Re-upload through the main upload form so the listing title changes to FortyGuard Temperature Intelligence Layer. No code change.
+    0.4.2 - Renamed to FortyGuard Temperature Intelligence Layer. No functional change.
     0.4.1 - Security-scan fix (one try/except/pass in the legend code); no functional change.
     0.4.0 - Smooth surface appearance (default): the API tiles are interpolated into a fine raster with a continuous colour ramp, clipped to the area, like the FortyGuard dashboard; the tiles layer is kept hidden for exact values. Tiles-only option remains. Not applied to Peak temperature time (cyclic hours).
     0.3.6 - Renamed to FortyGuard Temperature Intelligence Layer; new description and about text (FortyGuard products, data-center example, API documentation link). No functional change.

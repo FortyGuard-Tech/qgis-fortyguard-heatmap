@@ -1,5 +1,10 @@
 # Changelog – FortyGuard Temperature Intelligence Layer (QGIS plugin)
 
+## 0.4.3 – 2026-10-19 (experimental)
+
+- Re-upload through the plugins.qgis.org main upload form so the listing title
+  updates (Add version does not change the title). No code change.
+
 ## 0.4.2 – 2026-10-16 (experimental)
 
 - Renamed to **FortyGuard Temperature Intelligence Layer**. No functional change.
