@@ -1,4 +1,4 @@
-# FortyGuard Temperature Intelligence Layer – QGIS plugin (0.5.2)
+# FortyGuard Temperature Intelligence Layer – QGIS plugin (0.5.3)
 
 Install the plugin, click the FortyGuard toolbar icon, enter **your own**
 FortyGuard API key, select an area and date, click **Generate Heatmap**, and

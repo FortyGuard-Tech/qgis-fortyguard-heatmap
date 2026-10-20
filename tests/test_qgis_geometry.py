@@ -109,3 +109,18 @@ class GeometryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(qgis_env.qgis_available(), "QGIS runtime not available")
+class ThreeDGeometryTests(unittest.TestCase):
+    def test_z_and_m_values_are_dropped(self):
+        from qgis.core import QgsFeature, QgsGeometry, QgsVectorLayer
+        from fortyguard_heatmap.core import geometry
+        layer = QgsVectorLayer("PolygonZ?crs=EPSG:4326", "z", "memory")
+        f = QgsFeature()
+        f.setGeometry(QgsGeometry.fromWkt("PolygonZ ((-74.01 40.70 10, -74.00 40.70 10, -74.00 40.71 10, -74.01 40.71 10, -74.01 40.70 10))"))
+        layer.dataProvider().addFeatures([f]); layer.updateExtents(); layer.selectAll()
+        info = geometry.prepare_aoi(layer)
+        for ring in info.geometry_geojson["coordinates"]:
+            for pos in ring:
+                self.assertEqual(len(pos), 2, pos)

@@ -282,6 +282,16 @@ class AnalysisStylingTests(unittest.TestCase):
         self.assertEqual(styling.decimals_for_bounds([(18.5132, 18.5149), (18.5149, 18.52)]), 3)
         self.assertEqual(styling.decimals_for_bounds([(1.0, 2.0), (2.0, 3.0)]), 1)
 
+    def test_clustered_minimum_does_not_leave_a_zero_width_first_class(self):
+        layer = self._value_layer([20.0] * 30 + [20.3, 20.5, 20.8, 21.4, 22.0, 22.5], analytic="tcm", field="temperature")
+        styling.apply_analysis_style(layer, "temperature", "celsius", classes=10)
+        ranges = layer.renderer().ranges()
+        self.assertTrue(all(r.lowerValue() < r.upperValue() for r in ranges), [r.label() for r in ranges])
+        self.assertEqual(ranges[0].lowerValue(), 20.0)
+        labels = [r.label() for r in ranges]
+        self.assertEqual(len(set(labels)), len(labels))
+        self.assertTrue(all(len(l.split(" - ")[0].split(".")[1]) <= 2 for l in labels), labels)
+
     def test_few_distinct_values_no_duplicate_classes(self):
         layer = self._value_layer([0.0] * 20 + [1.0] * 20 + [3.0] * 5)
         n = styling.apply_analysis_style(layer, "value", "hours")

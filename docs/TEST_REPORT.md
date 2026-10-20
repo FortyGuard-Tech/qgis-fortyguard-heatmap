@@ -1,4 +1,4 @@
-# Test report – FortyGuard Temperature Intelligence Layer 0.5.1 (0.5.0 fixes + legend classes option)
+# Test report – FortyGuard Temperature Intelligence Layer 0.5.3
 
 ## 0. Internal testing round (2026-10-19) and the fixes in 0.5.0
 
@@ -76,6 +76,31 @@ legend findings of round 1 on Windows (fixed in 0.5.0).
 Cost of this verification: 3 completed requests × 4,220 = 12,660 credits on the shared Hackathon key.
 
 Automated result for 0.5.2: `scripts/run_tests.sh` → **96 pure-Python and 98 QGIS-runtime tests, 0 failed**.
+
+### 0d. Independent code review before the next round → 0.5.3
+
+A separate reviewer read every module and drove the dialog headless with a fake API client (no
+FortyGuard calls). Twelve defects were confirmed and fixed; each has a regression test in
+`tests/test_qgis_dialog_demo.py::DialogLiveFlowTests` (dialog against a scripted local HTTP server),
+`tests/test_qgis_output_styling.py` or `tests/test_qgis_geometry.py`:
+
+| # | Severity | Defect | Fix |
+|---|----------|--------|-----|
+| 38 | High | Check Again on an earlier activity used the latest request's analysis type/threshold/area; a stopped Exceedance fetched after a Temperature run errored and the paid GeoJSON was not saved | Per-activity request context; `stats_data.analytic_type` authoritative |
+| 39 | High | A cancelled confirmation or blocked pre-check overwrote the previous job's context | Context applied only when the job starts |
+| 40 | Medium | Restyle after the layer was removed → `RuntimeError` | Layer resolved through the project; clean error |
+| 41 | Medium | Restyle changed the hidden tiles but not the visible surface | Surface rebuilt for the new measure |
+| 42 | Medium | Schema check raised before saving; message claimed the file was saved | Save first, then style; path in the message |
+| 43 | Medium-low | Zero-width first class survived → four-decimal labels | Zero-width classes merged into neighbours |
+| 44 | Low-medium | PolygonZ/M sent 3-D coordinates | Z/M dropped |
+| 45 | Low | Check Again after a demo run replayed the fixture as if live | Demo IDs refused |
+| 46 | Low | Same-job Check Again used the key from submission time | Client rebuilt when the key differs |
+| 47 | Low | Date pickers allowed tomorrow, payload rejected it before noon | Maximum date = today |
+| 48 | Low | `OSError` while saving lost the paid result with a traceback | Caught; message with the activity ID |
+| 49 | Low | Duplicate warning pointed at an `_EMPTY` record as a loadable file | Separate wording |
+| – | Hardening | Enter could trigger Generate; usage callback re-enabled a button mid-run; unfinished activity cleared too eagerly; surface memory on large areas | Non-default buttons; busy check; per-activity clearing; adaptive pixel grid, float32 |
+
+Automated result for 0.5.3 (2026-10-20): `scripts/run_tests.sh` → **96 pure-Python and 105 QGIS-runtime tests, 0 failed** (1 keychain test skipped headless).
 
 ---
 

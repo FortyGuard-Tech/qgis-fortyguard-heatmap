@@ -81,6 +81,10 @@ class HeatmapApiClient(QObject):
     def has_api_key(self):
         return bool(self._api_key)
 
+    def uses_key(self, key):
+        """True when this client was built with exactly ``key`` (compared in memory, never logged)."""
+        return bool(self._api_key) and self._api_key == (key or "").strip()
+
     # ------------------------------------------------------------ internal
 
     def _request(self, url):

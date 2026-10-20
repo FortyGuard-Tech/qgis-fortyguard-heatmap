@@ -1,5 +1,37 @@
 # Changelog – FortyGuard Temperature Intelligence Layer (QGIS plugin)
 
+## 0.5.3 – 2026-10-20
+
+Independent code review (fresh-eyes pass over every module) before the next
+internal test round. All items verified with new regression tests.
+
+- **Check Again across requests** keeps each activity's own request context
+  (analysis type, threshold, area, fingerprint). A stopped Exceedance fetched
+  after a Temperature run was styled as temperature and failed; now every live
+  submission records its context, and the API's `stats_data.analytic_type` is
+  authoritative for any result.
+- A cancelled confirmation or a blocked pre-check no longer replaces the
+  previous job's context (which broke Check Again and produced a false
+  "identical request already completed" warning).
+- **Results are saved before styling**, so a schema surprise never loses a paid
+  result; the error names the saved file. `OSError`/GDAL failures while saving
+  are reported with the activity ID instead of a Python traceback.
+- **Restyle** resolves the layer through the project (no crash after the layer
+  was removed) and rebuilds the smooth surface for the new measure.
+- Legend: a zero-width class at the minimum (clustered values) is merged, so
+  labels no longer fall back to four decimals.
+- 3-D polygons (PolygonZ/M from KML, CAD, shapefiles) are sent as 2-D.
+- Date pickers end today (the API's "+12 h" never reaches tomorrow before noon).
+- Generate / Check Again / Stop / Check key are no longer default buttons:
+  Enter in the key or activity field cannot start a request.
+- Check Again refuses demo activity IDs, always uses the key currently in the
+  field, and the "Check key and credits" button stays disabled during a run.
+- The duplicate warning distinguishes an earlier 0-tile (charged) result.
+- A previous activity stays "unfinished" after a 404/forbidden give-up, and is
+  cleared only when that same activity completes.
+- Smooth surface: very large areas get a coarser pixel grid (instead of an
+  error) and float32 temporaries (less memory on 8 GB laptops).
+
 ## 0.5.2 – 2026-10-20
 
 Second internal testing round (Windows 11 / QGIS 3.44.15; testers Shreya,

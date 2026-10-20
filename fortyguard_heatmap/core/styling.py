@@ -169,11 +169,14 @@ def numeric_values(layer, idx):
 def class_bounds(values, classes, method="quantile"):
     """(lower, upper) pairs from QGIS's classification methods, zero-width duplicates dropped."""
     calc = QgsClassificationQuantile() if method == "quantile" else QgsClassificationEqualInterval()
+    raw = [(float(r.lowerBound()), float(r.upperBound())) for r in calc.classes(list(values), int(classes))]
     out = []
-    for rng in calc.classes(list(values), int(classes)):
-        lo, hi = float(rng.lowerBound()), float(rng.upperBound())
-        if lo == hi and out and out[-1][1] >= lo:
-            continue  # the value is already covered by the previous class (inclusive upper bound)
+    for i, (lo, hi) in enumerate(raw):
+        if lo == hi:
+            covered_before = bool(out) and out[-1][1] >= lo
+            covered_after = i + 1 < len(raw) and raw[i + 1][0] <= lo <= raw[i + 1][1]
+            if covered_before or covered_after:
+                continue  # a zero-width class whose value a neighbour already contains (inclusive bounds)
         out.append((lo, hi))
     if not out:
         out = [(min(values), max(values))]

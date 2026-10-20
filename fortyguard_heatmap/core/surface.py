@@ -22,7 +22,7 @@ NODATA = -9999.0
 PIXELS_PER_TILE = 8          # pixel size = tile size / 8  (100 m tiles -> 12.5 m pixels)
 BLUR_SIGMA_TILES = 0.45      # Gaussian sigma in tile units
 MIN_WEIGHT = 0.15            # a pixel is valid only if >= 15 percent of its kernel weight comes from real tiles
-MAX_PIXELS = 4000 * 4000     # safety cap
+MAX_PIXELS = 2500 * 2500     # above this the pixel density is halved (memory on 8 GB laptops)
 
 
 def _tile_bbox(feature):
@@ -81,9 +81,14 @@ def build_grid(map_data, field, pixels_per_tile=PIXELS_PER_TILE):
     maxy = max(b[0][3] for b in boxes) + th / 2.0
     cols = int(math.ceil((maxx - minx) / px))
     rows = int(math.ceil((maxy - miny) / py))
+    while cols * rows > MAX_PIXELS and pixels_per_tile > 1:
+        # very large areas: coarser pixels rather than a failure or hundreds of megabytes
+        pixels_per_tile = max(1, pixels_per_tile // 2)
+        px, py = tw / float(pixels_per_tile), th / float(pixels_per_tile)
+        cols = int(math.ceil((maxx - minx) / px))
+        rows = int(math.ceil((maxy - miny) / py))
     if cols * rows > MAX_PIXELS:
-        raise ApiError("The area is too large for a smooth surface at this resolution (%d x %d pixels)." % (cols, rows),
-                       kind="invalid_input")
+        raise ApiError("The area is too large for a smooth surface (%d x %d pixels)." % (cols, rows), kind="invalid_input")
     values = np.zeros((rows, cols), dtype=np.float32)
     mask = np.zeros((rows, cols), dtype=bool)
     for (x0, y0, x1, y1), v in boxes:
@@ -127,9 +132,9 @@ def gaussian_blur_nodata(values, mask, sigma_px):
     if sigma_px <= 0:
         out = np.where(mask, values, NODATA).astype(np.float32)
         return out, mask.copy()
-    k = _gaussian_kernel(sigma_px)
-    v = values.astype(np.float64) * mask
-    m = mask.astype(np.float64)
+    k = _gaussian_kernel(sigma_px).astype(np.float32)
+    v = values.astype(np.float32) * mask
+    m = mask.astype(np.float32)
     num = _convolve_separable(v, k)
     den = _convolve_separable(m, k)
     valid = den >= MIN_WEIGHT
@@ -165,7 +170,10 @@ def build_surface(map_data, field, aoi_polygon=None, pixels_per_tile=PIXELS_PER_
                   sigma_tiles=BLUR_SIGMA_TILES):
     """Full pipeline: grid -> blur -> clip. Returns (array, geotransform, stats dict)."""
     values, mask, gt = build_grid(map_data, field, pixels_per_tile)
-    out, valid = gaussian_blur_nodata(values, mask, sigma_tiles * pixels_per_tile)
+    # pixels per tile may have been reduced for very large areas; derive it from the grid itself
+    tw, _th = tile_size(map_data)
+    effective_ppt = max(1.0, tw / gt[1])
+    out, valid = gaussian_blur_nodata(values, mask, sigma_tiles * effective_ppt)
     if aoi_polygon is not None:
         out, valid = clip_to_polygon(out, valid, gt, aoi_polygon)
     if not valid.any():

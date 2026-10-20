@@ -3,6 +3,7 @@
 
 Must be called on the main thread (reads layers and features).
 """
+import contextlib
 import json
 
 from qgis.core import (
@@ -71,6 +72,11 @@ def geometry_to_wgs84_polygon(geometry, source_crs, project=None):
         raise ValidationError("The selected polygon geometry is invalid: %s" % geometry.lastError())
 
     geom = type(geometry)(geometry)  # copy; never mutate the layer's geometry
+    # The API documents 2-D [lon, lat] positions only: strip Z/M from 3-D inputs (KML, CAD, 3-D shapefiles).
+    with contextlib.suppress(Exception):
+        if geom.constGet() is not None and (geom.constGet().is3D() or geom.constGet().isMeasure()):
+            geom.get().dropZValue()
+            geom.get().dropMValue()
     if not source_crs.isValid():
         raise ValidationError("The layer has no valid coordinate reference system; set one first.")
     if source_crs != WGS84:
@@ -86,6 +92,8 @@ def geometry_to_wgs84_polygon(geometry, source_crs, project=None):
     gj = json.loads(geom.asJson(15))
     if gj.get("type") == "MultiPolygon" and len(gj.get("coordinates", [])) == 1:
         gj = {"type": "Polygon", "coordinates": gj["coordinates"][0]}
+    if gj.get("type") == "Polygon":  # belt and braces: never send a third coordinate
+        gj["coordinates"] = [[list(p[:2]) for p in ring] for ring in gj["coordinates"]]
     return validate_polygon_geojson(gj)
 
 

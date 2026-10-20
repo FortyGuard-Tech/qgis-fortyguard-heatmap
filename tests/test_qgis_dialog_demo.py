@@ -575,3 +575,169 @@ class DialogSmoothSurfaceTests(unittest.TestCase):
         self.assertIn("cyclic", self.dlg.log.toPlainText())
         vec = new[0]
         self.assertTrue(QgsProject.instance().layerTreeRoot().findLayer(vec.id()).isVisible())
+
+
+@unittest.skipUnless(qgis_env.qgis_available(), "QGIS runtime not available")
+class DialogLiveFlowTests(unittest.TestCase):
+    """The dialog against the scripted local API server (no FortyGuard call): Check Again across requests."""
+
+    @classmethod
+    def setUpClass(cls):
+        import threading
+        from http.server import HTTPServer
+        from tests.test_qgis_job import FakeApi, make_handler
+        cls.api = FakeApi()
+        cls.server = HTTPServer(("127.0.0.1", 0), make_handler(cls.api))
+        cls.base_url = "http://127.0.0.1:%d" % cls.server.server_address[1]
+        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown(); cls.server.server_close()
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="fg_dialog_live_")
+        qgis_env.reset_plugin_settings()
+        QgsProject.instance().clear()
+        self.iface = FakeIface()
+        os.environ["FORTYGUARD_DEV_ENVIRONMENT"] = "1"
+        try:
+            self.dlg = HeatmapDialog(self.iface)
+        finally:
+            os.environ.pop("FORTYGUARD_DEV_ENVIRONMENT", None)
+        self.dlg.base_url_combo.addItem("local test server", self.base_url)
+        self.dlg.base_url_combo.setCurrentIndex(self.dlg.base_url_combo.findData(self.base_url))
+        self.dlg.key_edit.setText("TEST-KEY")
+        self.dlg.output_dir.setFilePath(self.tmp)
+        from fortyguard_heatmap.ui.dialog import APPEARANCE_TILES
+        self.dlg.appearance_combo.setCurrentIndex(self.dlg.appearance_combo.findData(APPEARANCE_TILES))
+        self.dlg.skip_checks_check.setChecked(True)
+        self.dlg._confirm = lambda title, text: True
+        self.dlg.demo_aoi_btn.click()
+        self.dlg.start_date.setDate(self.dlg.start_date.date().addDays(-30))
+        self.api.requests.clear()
+
+    def tearDown(self):
+        self.dlg.shutdown()
+        QgsProject.instance().clear()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    @staticmethod
+    def _completed(activity, kind):
+        from tests.test_qgis_job import COMPLETED
+        import json as _json
+        body = _json.loads(_json.dumps(COMPLETED))
+        body["data"]["activity_id"] = activity
+        geom = {"type": "Polygon", "coordinates": [[[-74.01, 40.70], [-74.00, 40.70], [-74.00, 40.71], [-74.01, 40.71], [-74.01, 40.70]]]}
+        if kind == "exceedance":
+            body["data"]["result"]["map_data"]["features"] = [
+                {"type": "Feature", "properties": {"tile_id": i, "value": float(i)}, "geometry": geom} for i in range(4)]
+            body["data"]["result"]["stats_data"] = {"analytic_type": "exceedance", "units": "hour", "n_cells": 4,
+                                                    "min": 0, "max": 3, "mean": 1.5}
+        else:
+            body["data"]["result"]["map_data"]["features"] = [
+                {"type": "Feature", "properties": {"tile_id": i, "average_temperature": 20.0 + i}, "geometry": geom} for i in range(4)]
+        return body
+
+    def _wait(self, signal_names, timeout=15000, click=None):
+        """Connect to the job signals first (some are emitted synchronously), then click, then pump."""
+        done = {"done": False}
+        if click is not None and self.dlg.job is None:
+            click()  # the click creates the job
+            click = None
+        for name in signal_names:
+            getattr(self.dlg.job, name).connect(lambda *a: done.__setitem__("done", True))
+        if click is not None:
+            click()
+        self.assertTrue(pump(done, timeout), self.dlg.log.toPlainText()[-1500:])
+        pump({"done": False}, 250)
+
+    def test_check_again_on_an_earlier_activity_restores_its_own_context(self):
+        # 1. exceedance request A, server keeps it Processing; user stops waiting
+        self.api.submit_response = (200, {"error": False, "data": {"activity_id": "act-A"}})
+        self.api.status_script = [(200, {"error": False, "data": {"activity_id": "act-A", "status": "Processing"}})]
+        self.dlg.analysis_combo.setCurrentIndex(self.dlg.analysis_combo.findData("exceedance"))
+        self.dlg.threshold_spin.setValue(33.0)
+        self.dlg.generate_btn.click()
+        self._wait(["submitted"])
+        self.assertEqual(self.dlg.activity_label.text(), "act-A")
+        self._wait(["stopped"], click=self.dlg.stop_btn.click)
+        self.assertIn("act-A", self.dlg._session_activities)
+        # 2. a temperature request B completes
+        self.api.submit_response = (200, {"error": False, "data": {"activity_id": "act-B"}})
+        self.api.status_script = [(200, self._completed("act-B", "tcm"))]
+        self.dlg.analysis_combo.setCurrentIndex(self.dlg.analysis_combo.findData("tcm"))
+        before = set(QgsProject.instance().mapLayers())
+        self.dlg.generate_btn.click()
+        self._wait(["completed", "failed"])
+        new_b = [QgsProject.instance().mapLayer(i) for i in set(QgsProject.instance().mapLayers()) - before]
+        self.assertEqual(len(new_b), 1); self.assertIn("tcm mean", new_b[0].name())
+        # 3. paste A's id and Check Again: the exceedance context (threshold, type) must come back
+        self.api.status_script = [(200, self._completed("act-A", "exceedance"))]
+        self.dlg.activity_label.setText("act-A")
+        self.assertTrue(self.dlg.resume_btn.isEnabled())
+        before = set(QgsProject.instance().mapLayers())
+        self.dlg.resume_btn.click()
+        self._wait(["completed", "failed"])
+        new_a = [QgsProject.instance().mapLayer(i) for i in set(QgsProject.instance().mapLayers()) - before]
+        self.assertEqual(len(new_a), 1, self.dlg.log.toPlainText()[-1200:])
+        self.assertIn("Exceedance hours", new_a[0].name())
+        self.assertIn("above 33 °C", new_a[0].name())
+        self.assertEqual(len([r for r in self.api.requests if r[0] == "POST"]), 2, "no new submission")
+        self.assertIn("act-A", self.dlg.log.toPlainText())
+        self.assertIsNone(self.dlg._unfinished_activity, "A is no longer unfinished after its result was fetched")
+
+    def test_cancelled_confirmation_keeps_the_previous_job_context(self):
+        self.api.submit_response = (200, {"error": False, "data": {"activity_id": "act-A"}})
+        self.api.status_script = [(200, {"error": False, "data": {"activity_id": "act-A", "status": "Processing"}})]
+        self.dlg.analysis_combo.setCurrentIndex(self.dlg.analysis_combo.findData("persistence"))
+        self.dlg.generate_btn.click()
+        self._wait(["submitted"])
+        self._wait(["stopped"], click=self.dlg.stop_btn.click)
+        self.dlg.analysis_combo.setCurrentIndex(self.dlg.analysis_combo.findData("tcm"))
+        self.dlg._confirm = lambda title, text: False
+        self.dlg.generate_btn.click()
+        self.assertEqual(self.dlg.last_analytic_type, "persistence", "a cancelled request must not replace the context")
+        self.assertIn("cancelled", self.dlg.log.toPlainText())
+        self.assertEqual(len([r for r in self.api.requests if r[0] == "POST"]), 1)
+
+    def test_unknown_activity_takes_its_type_from_the_result(self):
+        self.api.status_script = [(200, self._completed("4f35f470-foreign", "exceedance"))]
+        self.dlg.activity_label.setText("4f35f470-foreign")
+        before = set(QgsProject.instance().mapLayers())
+        self.dlg.resume_btn.click()
+        self._wait(["completed", "failed"])
+        new = [QgsProject.instance().mapLayer(i) for i in set(QgsProject.instance().mapLayers()) - before]
+        self.assertEqual(len(new), 1, self.dlg.log.toPlainText()[-1200:])
+        self.assertIn("Exceedance hours", new[0].name())
+        self.assertIn("activity 4f35f470", new[0].name())
+        self.assertFalse(any(r[0] == "POST" for r in self.api.requests))
+
+    def test_restyle_after_layer_removed_and_rebuilds_surface(self):
+        from qgis.core import QgsRasterLayer
+        from fortyguard_heatmap.ui.dialog import APPEARANCE_SMOOTH
+        self.dlg.appearance_combo.setCurrentIndex(self.dlg.appearance_combo.findData(APPEARANCE_SMOOTH))
+        self.api.submit_response = (200, {"error": False, "data": {"activity_id": "act-S"}})
+        self.api.status_script = [(200, self._completed("act-S", "tcm"))]
+        self.dlg.generate_btn.click()
+        self._wait(["completed", "failed"])
+        surface_before = self.dlg.last_surface_layer
+        self.assertIsInstance(surface_before, QgsRasterLayer)
+        self.assertIn("mean", surface_before.name())
+        self.dlg.measure_combo.setCurrentIndex(self.dlg.measure_combo.findData(contract.FIELD_AVERAGE))
+        self.dlg.restyle_btn.click()
+        self.assertIsNot(self.dlg.last_surface_layer, surface_before, "surface rebuilt on restyle")
+        self.assertEqual(len([l for l in QgsProject.instance().mapLayers().values() if isinstance(l, QgsRasterLayer)]), 1)
+        QgsProject.instance().removeMapLayer(self.dlg.last_layer.id())
+        shown = []
+        self.dlg._show_error = lambda text: shown.append(text)
+        self.dlg.restyle_btn.click()      # must not raise RuntimeError
+        self.assertEqual(len(shown), 1); self.assertIn("removed", shown[0])
+        self.assertFalse(self.dlg.restyle_btn.isEnabled())
+
+    def test_buttons_are_not_default_buttons(self):
+        for b in (self.dlg.generate_btn, self.dlg.resume_btn, self.dlg.stop_btn, self.dlg.check_key_btn):
+            self.assertFalse(b.autoDefault()); self.assertFalse(b.isDefault())
+        from qgis.PyQt.QtCore import QDate
+        self.assertEqual(self.dlg.start_date.maximumDate(), QDate.currentDate())

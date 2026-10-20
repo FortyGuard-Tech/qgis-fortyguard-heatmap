@@ -127,6 +127,7 @@ class HeatmapDialog(QDialog):
         self.usage_client = None
         self.last_usage = None
         self.last_layer = None
+        self.last_gpath = None
         self.last_map_data = None
         self.last_stats = None
         self.last_request_summary = ""
@@ -139,7 +140,8 @@ class HeatmapDialog(QDialog):
         self.last_fingerprint = None
         self._completed_requests = {}      # fingerprint -> (activity_id, path, when) for this session
         self._unfinished_activity = None    # activity id whose outcome is unknown (stopped / timed out)
-        self._session_activities = []       # (activity_id, request summary) of every submission this session
+        self._session_activities = {}       # activity_id -> request context of every live submission this session
+        self._active_context = None
         self._foreign_activity = False      # Check Again on an ID not submitted in this session
         self._last_status_key = None
         self._status_repeats = 0
@@ -191,6 +193,7 @@ class HeatmapDialog(QDialog):
         f.addRow("API key", key_row)
         check_row = QHBoxLayout()
         self.check_key_btn = QPushButton("Check key and credits")
+        self.check_key_btn.setAutoDefault(False)
         check_row.addWidget(self.check_key_btn)
         check_row.addStretch(1)
         f.addRow("", check_row)
@@ -273,7 +276,7 @@ class HeatmapDialog(QDialog):
         f.addRow("Filter type", self.filter_combo)
 
         min_date = QDate.fromString(contract.MIN_DATE_ISO, "yyyy-MM-dd")
-        max_date = QDate.currentDate().addDays(1)   # documented limit (now + 12 h); the API is the authority
+        max_date = QDate.currentDate()   # the documented "+12 h" never reaches tomorrow before noon; recent days warn
         default_start, default_end = default_dates()
 
         self.month_edit = QDateEdit()
@@ -410,10 +413,12 @@ class HeatmapDialog(QDialog):
         v = QVBoxLayout(act)
         btns = QHBoxLayout()
         self.generate_btn = QPushButton("Generate Heatmap")
-        self.generate_btn.setDefault(True)
+        self.generate_btn.setAutoDefault(False)   # Enter in a text field must never start a (paid) request
         self.stop_btn = QPushButton("Stop Waiting")
+        self.stop_btn.setAutoDefault(False)
         self.stop_btn.setToolTip("Stops polling locally only. The FortyGuard job keeps running on the server.")
         self.resume_btn = QPushButton("Check Again")
+        self.resume_btn.setAutoDefault(False)
         self.resume_btn.setToolTip("Poll the activity ID shown below again, without a new submission. You can also "
                                    "paste the ID of an earlier request (see the log) to fetch its result.")
         btns.addWidget(self.generate_btn, 1)
@@ -697,7 +702,8 @@ class HeatmapDialog(QDialog):
         self.log_line("Checking key and credits on %s (key %s)..." % (self.base_url, credentials.mask(key)))
 
         def _cb(info, error):
-            self.check_key_btn.setEnabled(not self.demo_check.isChecked())
+            busy = bool(self.job and self.job.is_active)
+            self.check_key_btn.setEnabled((not busy) and not self.demo_check.isChecked())
             if error is not None:
                 self.last_usage = None
                 self.usage_label.setText("<span style='color:#a33'>%s</span>" % error.user_message())
@@ -804,6 +810,10 @@ class HeatmapDialog(QDialog):
                     "Submitting it again is charged again and returns the same tiles."
                     % (when.strftime("%H:%M"), activity_id, os.path.basename(path or "-")))
         meta = output.find_previous_result(self.output_dir.filePath(), fp)
+        if meta and meta.get("tiles") == 0 or (meta and "EMPTY" in os.path.basename(meta["path"])):
+            return ("An identical request already completed on %s with 0 tiles and was charged (activity %s). "
+                    "The same request will most likely return 0 tiles again."
+                    % (meta.get("saved_at", "?"), meta.get("activity_id", "?")))
         if meta:
             return ("An identical request was already completed on %s (activity %s, file %s in the output folder). "
                     "Submitting it again is charged again and returns the same tiles. You can load that file instead."
@@ -822,18 +832,19 @@ class HeatmapDialog(QDialog):
         for note in notes:
             self.log_line(note, Qgis.Warning)
 
-        self.last_request_summary = payload.describe_request(body)
-        self.last_aoi_polygon = aoi.geometry_geojson
-        self.last_analytic_type = body["analytic_type"]
-        self.last_threshold = body.get("threshold")
-        self.last_demo = demo_mode
-        self.last_fingerprint = preflight.request_fingerprint(body, self.base_url)
-        analysis_label = "%s (%s)" % (contract.ANALYSIS_LABELS[self.last_analytic_type],
-                                      output.unit_label(self.last_analytic_type))
+        # Context of the request being prepared. It becomes the active context (last_*) only when the
+        # job really starts, so a cancelled confirmation or a blocked pre-check leaves the previous
+        # job's context (needed by Check Again) untouched.
+        ctx = {"summary": payload.describe_request(body), "aoi": aoi.geometry_geojson,
+               "analytic_type": body["analytic_type"], "threshold": body.get("threshold"), "demo": demo_mode,
+               "fingerprint": preflight.request_fingerprint(body, self.base_url)}
+        summary = ctx["summary"]
+        analysis_label = "%s (%s)" % (contract.ANALYSIS_LABELS[ctx["analytic_type"]],
+                                      output.unit_label(ctx["analytic_type"]))
 
         if demo_mode:
             fixture = demo.fixture_for_request(body["analytic_type"], body["date_time"]["filter_type"])
-            self.client = DemoApiClient(fixture, parent=self)
+            client = DemoApiClient(fixture, parent=self)
             self.log_line("DEMO MODE: %s - replaying synthetic fixture '%s'. No request is sent to FortyGuard."
                           % (analysis_label, fixture))
         else:
@@ -858,7 +869,7 @@ class HeatmapDialog(QDialog):
                    "Area: feature %s of '%s' (~%.2f km² / %.2f mi²)\n"
                    "Request: %s (filter type %d)\n\n%s\n"
                    % (base_url, analysis_label, aoi.feature_id, aoi.layer_name, aoi.area_sq_km, aoi.area_sq_mi,
-                      self.last_request_summary, body["date_time"]["filter_type"], cost))
+                      summary, body["date_time"]["filter_type"], cost))
             if notes:
                 msg += "\n" + "\n".join(notes) + "\n"
             if warnings:
@@ -869,16 +880,29 @@ class HeatmapDialog(QDialog):
             if self._confirm("Confirm live request", msg) is not True:
                 self.log_line("Request cancelled by the user before submission (nothing sent).")
                 return
-            self.client = HeatmapApiClient(key, base_url=base_url, parent=self)
+            client = HeatmapApiClient(key, base_url=base_url, parent=self)
             self.log_line("Submitting live %s request to %s: %s (area ~%.2f km², source CRS %s, key %s)."
-                          % (analysis_label, base_url, self.last_request_summary, aoi.area_sq_km,
+                          % (analysis_label, base_url, summary, aoi.area_sq_km,
                              aoi.source_crs_authid, credentials.mask(key)))
 
+        self.client = client
+        self._apply_context(ctx)
+        self._foreign_activity = False
         self.last_map_data = None
         self.last_stats = None
         self.stats_label.setText("-")
         self.activity_label.setText("")
         self._start_job(body)
+
+    def _apply_context(self, ctx):
+        """Make ``ctx`` the active request context used by the completion/failure handlers."""
+        self.last_request_summary = ctx["summary"]
+        self.last_aoi_polygon = ctx["aoi"]
+        self.last_analytic_type = ctx["analytic_type"]
+        self.last_threshold = ctx["threshold"]
+        self.last_demo = ctx["demo"]
+        self.last_fingerprint = ctx["fingerprint"]
+        self._active_context = ctx
 
     def _confirm(self, title, text):
         return QMessageBox.question(self, title, text, QMessageBox.Yes | QMessageBox.No,
@@ -916,7 +940,8 @@ class HeatmapDialog(QDialog):
         if self.last_demo:
             self.log_line("Submitted (demo). activity_id = %s" % activity_id)
             return
-        self._session_activities.append((activity_id, self.last_request_summary))
+        if self._active_context is not None:
+            self._session_activities[activity_id] = dict(self._active_context)
         self.log_line("Submitted. activity_id = %s (%s). Keep this ID: paste it into the Activity ID field and click "
                       "Check Again to fetch the result later." % (activity_id, self.last_request_summary))
 
@@ -969,23 +994,34 @@ class HeatmapDialog(QDialog):
         if not key:
             self._show_error("Enter your FortyGuard API key to check an activity.")
             return
-        same_job = self.job is not None and self.job.can_resume and typed in ("", self.job.activity_id or "")
-        if same_job and self.client is not None and getattr(self.client, "has_api_key", lambda: False)():
-            self._foreign_activity = False
-            self._set_busy(True)
-            self.job.resume()
+        if typed.startswith(demo.DEMO_ACTIVITY_PREFIX):
+            self._show_error("'%s' is a demo activity: nothing was sent to FortyGuard, so there is nothing to check. "
+                             "Paste the ID of a live request instead." % typed)
             return
         if not typed:
             self._show_error("Paste an activity ID into the Activity ID field first.")
             return
-        # another (earlier) activity: build a fresh job on the current key and poll that ID
-        known = dict(self._session_activities).get(typed)
-        self.client = HeatmapApiClient(key, base_url=self.base_url, parent=self)
-        self._foreign_activity = known is None
-        self.last_demo = False
-        self.last_request_summary = known or ("activity %s" % typed[:8])
-        self.last_fingerprint = None
-        self.last_aoi_polygon = None if known is None else self.last_aoi_polygon
+        same_job = (self.job is not None and self.job.can_resume and typed == (self.job.activity_id or "")
+                    and not self.last_demo and isinstance(self.client, HeatmapApiClient))
+        if self.client is None or not isinstance(self.client, HeatmapApiClient) or not self.client.uses_key(key) \
+                or self.client.base_url != self.base_url:
+            self.client = HeatmapApiClient(key, base_url=self.base_url, parent=self)
+            if same_job:
+                self.job.client = self.client
+        if same_job:
+            self._set_busy(True)
+            self.job.resume()
+            return
+        # another activity: restore its own request context if it was submitted in this session,
+        # otherwise read the analysis type from the result when it arrives
+        known = self._session_activities.get(typed)
+        if known is not None:
+            self._apply_context(known)
+            self._foreign_activity = False
+        else:
+            self._apply_context({"summary": "activity %s" % typed[:8], "aoi": None, "analytic_type": contract.ANALYTIC_TYPE_TCM,
+                                 "threshold": None, "demo": False, "fingerprint": None})
+            self._foreign_activity = True
         self.last_map_data = None
         self.last_stats = None
         self.stats_label.setText("-")
@@ -1002,16 +1038,19 @@ class HeatmapDialog(QDialog):
         if kind == "auth":
             message += " Tip: use 'Check key and credits' to verify the key for the selected environment."
         if kind == "empty" and activity_id and not self.last_demo:
-            self._completed_requests[self.last_fingerprint] = (activity_id, None, _dt.datetime.now())
-            self._unfinished_activity = None
+            if self.last_fingerprint:
+                self._completed_requests[self.last_fingerprint] = (activity_id, None, _dt.datetime.now())
+            if activity_id == self._unfinished_activity:
+                self._unfinished_activity = None
             with contextlib.suppress(ApiError, OSError):
                 path = output.save_empty_record(self.output_dir.filePath(), self.job.last_stats, self.last_request_summary,
                                                 activity_id, self.last_analytic_type, fingerprint=self.last_fingerprint,
                                                 environment=self.base_url)
                 self.log_line("A record of this charged activity was saved as %s" % path)
-        elif kind in ("timeout", "server", "network", "rate_limited", "unknown") and activity_id and not self.last_demo:
+        elif kind not in ("no_data", "invalid_input", "failed", "auth") and activity_id and not self.last_demo:
             self._unfinished_activity = activity_id   # outcome unknown: the job may complete and be charged
-        elif kind in ("no_data", "invalid_input", "failed") and not self.last_demo:
+        elif kind in ("no_data", "invalid_input", "failed") and not self.last_demo \
+                and (not activity_id or activity_id == self._unfinished_activity):
             self._unfinished_activity = None          # the API rejected or failed it: nothing to fetch later
         if self.iface:
             self.iface.messageBar().pushMessage("FortyGuard Temperature Intelligence Layer", message, level=Qgis.Critical, duration=15)
@@ -1019,44 +1058,33 @@ class HeatmapDialog(QDialog):
     def _on_completed(self, map_data, stats_data):
         self.last_map_data = map_data
         self.last_stats = stats_data
-        if self._foreign_activity:
-            # The request that created this activity is unknown: read the analysis type from the result itself.
-            api_at = responses.analysis_stats(stats_data).get("analytic_type")
-            if api_at in contract.ANALYTIC_TYPES:
-                self.last_analytic_type = api_at
-            elif responses.result_schema(map_data) == "value":
-                self.last_analytic_type = contract.ANALYTIC_TYPE_EXCEEDANCE
-                self.log_line("The result carries 'value' tiles but stats_data names no analysis type; styled as hours.",
-                              Qgis.Warning)
-            else:
-                self.last_analytic_type = contract.ANALYTIC_TYPE_TCM
-            self.last_threshold = None
-        at = self.last_analytic_type
-        unit_kind = contract.UNIT_KIND.get(at, "celsius")
         activity_id = self.job.activity_id if self.job else ""
-        if not self.last_demo:
+        if not self.last_demo and activity_id == self._unfinished_activity:
             self._unfinished_activity = None
+        # The result itself is authoritative for the analysis type: the API names it in stats_data for the
+        # three analyses, and tcm results carry temperature fields. This covers Check Again on an activity
+        # whose request is unknown, and any mismatch between what was asked and what came back.
+        schema = responses.result_schema(map_data)
+        api_at = responses.analysis_stats(stats_data).get("analytic_type")
+        expected = self.last_analytic_type
+        if api_at in contract.ANALYTIC_TYPES:
+            at = api_at
+        elif schema == "value":
+            at = expected if expected != contract.ANALYTIC_TYPE_TCM else contract.ANALYTIC_TYPE_EXCEEDANCE
+        elif schema in ("temperature", "aggregate"):
+            at = contract.ANALYTIC_TYPE_TCM
+        else:
+            at = expected
+        if at != expected:
+            self.log_line("The result is a %s analysis (from the API's stats_data), not %s as expected; styled accordingly."
+                          % (contract.ANALYSIS_LABELS[at], contract.ANALYSIS_LABELS[expected]), Qgis.Warning)
+            self.last_analytic_type = at
+            if at not in contract.THRESHOLD_TYPES:
+                self.last_threshold = None
+        unit_kind = contract.UNIT_KIND.get(at, "celsius")
+        gpath = None
         try:
-            schema = responses.result_schema(map_data)
-            if at == contract.ANALYTIC_TYPE_TCM:
-                measures = responses.available_measures(map_data)
-                if not measures:
-                    raise ApiError("The temperature result has no numeric temperature field (%s). Nothing was styled."
-                                   % ", ".join(contract.MEASURE_PRIORITY), kind="malformed")
-                measure = self._choose_measure(measures)
-            else:
-                if schema != "value":
-                    raise ApiError("The %s result does not use the expected 'value' field (detected schema: %s). "
-                                   "Nothing was styled; the raw GeoJSON was still saved."
-                                   % (contract.ANALYSIS_LABELS[at], schema or "no numeric field"), kind="malformed")
-                measure = contract.FIELD_VALUE
-                api_stats = responses.analysis_stats(stats_data)
-                if api_stats.get("units") and api_stats["units"].lower() != "hour":
-                    self.log_line("stats_data.units is '%s' (expected 'hour'); legend labels assume hours."
-                                  % api_stats["units"], Qgis.Warning)
-                if api_stats.get("analytic_type") and api_stats["analytic_type"] != at:
-                    self.log_line("stats_data.analytic_type is '%s' but '%s' was requested."
-                                  % (api_stats["analytic_type"], at), Qgis.Warning)
+            # Save first: a paid result must reach the disk even if styling fails.
             gpath, mpath = output.save_result(self.output_dir.filePath(), map_data, stats_data,
                                               self.last_request_summary, activity_id, demo=self.last_demo,
                                               analytic_type=at, fingerprint=self.last_fingerprint,
@@ -1064,11 +1092,29 @@ class HeatmapDialog(QDialog):
             self.log_line("Saved result to %s" % gpath)
             if not self.last_demo and self.last_fingerprint:
                 self._completed_requests[self.last_fingerprint] = (activity_id, gpath, _dt.datetime.now())
+            if at == contract.ANALYTIC_TYPE_TCM:
+                measures = responses.available_measures(map_data)
+                if not measures:
+                    raise ApiError("The temperature result has no numeric temperature field (%s). Nothing was styled; "
+                                   "the raw GeoJSON was saved as %s." % (", ".join(contract.MEASURE_PRIORITY), gpath),
+                                   kind="malformed")
+                measure = self._choose_measure(measures)
+            else:
+                if schema != "value":
+                    raise ApiError("The %s result does not use the expected 'value' field (detected schema: %s). "
+                                   "Nothing was styled; the raw GeoJSON was saved as %s."
+                                   % (contract.ANALYSIS_LABELS[at], schema or "no numeric field", gpath), kind="malformed")
+                measure = contract.FIELD_VALUE
+                api_stats = responses.analysis_stats(stats_data)
+                if api_stats.get("units") and api_stats["units"].lower() != "hour":
+                    self.log_line("stats_data.units is '%s' (expected 'hour'); legend labels assume hours."
+                                  % api_stats["units"], Qgis.Warning)
             name = output.layer_name(measure, self.last_request_summary, demo=self.last_demo, analytic_type=at)
             layer = output.load_layer(gpath, name, measure, self.last_request_summary, activity_id,
                                       demo=self.last_demo, analytic_type=at, threshold=self.last_threshold)
             n = styling.apply_analysis_style(layer, measure, unit_kind, classes=self.classes_spin.value())
             self.last_layer = layer
+            self.last_gpath = gpath
             summary = responses.numeric_summary(map_data, measure)
             self.log_line("Added layer '%s' (%d tiles, %d classes on '%s' in %s; %d tiles without a value)."
                           % (name, layer.featureCount(), n, measure, output.unit_label(at), summary["missing"]))
@@ -1085,6 +1131,10 @@ class HeatmapDialog(QDialog):
                      else "Heatmap layer added: %s" % name), level=Qgis.Success, duration=8)
         except ApiError as exc:
             self._show_error(str(exc))
+        except (OSError, RuntimeError) as exc:  # unwritable folder, path too long, GDAL/OGR failure...
+            self._show_error("The result of activity %s could not be saved or displayed: %s. Fix the output folder and "
+                             "click Check Again to fetch the result again (no new charge)."
+                             % (activity_id or "-", exc))
         finally:
             self._set_busy(False)
 
@@ -1135,6 +1185,16 @@ class HeatmapDialog(QDialog):
         self.log_line("Preferred measure '%s' is not in the result; using '%s'." % (preferred, measures[0]), Qgis.Warning)
         return measures[0]
 
+    def _live_layer(self, layer):
+        """The layer if it is still in the project, else None (the Python wrapper may be dead)."""
+        if layer is None:
+            return None
+        try:
+            lid = layer.id()
+        except RuntimeError:  # wrapped C++ object deleted
+            return None
+        return QgsProject.instance().mapLayer(lid)
+
     def _on_restyle(self):
         if self.last_layer is None or self.last_map_data is None:
             return
@@ -1142,17 +1202,37 @@ class HeatmapDialog(QDialog):
             self.log_line("Restyle with another measure applies to temperature layers only.", Qgis.Warning)
             return
         try:
-            if self.last_layer.id() not in QgsProject.instance().mapLayers():
-                raise ApiError("The last layer is no longer in the project.", kind="malformed")
+            layer = self._live_layer(self.last_layer)
+            if layer is None:
+                self.last_layer = None
+                self.last_surface_layer = None
+                self.restyle_btn.setEnabled(False)
+                raise ApiError("The last result layer was removed from the project; generate it again or load the "
+                               "saved GeoJSON from the output folder.", kind="malformed")
             measures = responses.available_measures(self.last_map_data)
             measure = self._choose_measure(measures)
-            n = styling.apply_temperature_style(self.last_layer, measure, classes=self.classes_spin.value())
-            self.last_layer.setName(output.layer_name(measure, self.last_request_summary, demo=self.last_demo))
-            self.last_layer.setCustomProperty(output.PROP_MEASURE, measure)
+            n = styling.apply_temperature_style(layer, measure, classes=self.classes_spin.value())
+            name = output.layer_name(measure, self.last_request_summary, demo=self.last_demo)
+            layer.setName(name)
+            layer.setCustomProperty(output.PROP_MEASURE, measure)
             self._show_stats(self.last_stats, measure, responses.numeric_summary(self.last_map_data, measure))
             self.log_line("Restyled layer on '%s' (%d classes)." % (measure, n))
+            # the visible smooth surface must show the same measure: rebuild it from the same tiles
+            old_surface = self._live_layer(self.last_surface_layer)
+            if old_surface is not None:
+                QgsProject.instance().removeMapLayer(old_surface.id())
+                self.last_surface_layer = None
+            if self.last_gpath and self.appearance_combo.currentData() == APPEARANCE_SMOOTH:
+                self._add_smooth_surface(self.last_map_data, measure, contract.UNIT_KIND[self.last_analytic_type],
+                                         self.last_gpath, name, layer, self.last_activity_id, self.last_analytic_type)
+            elif old_surface is not None:
+                node = QgsProject.instance().layerTreeRoot().findLayer(layer.id())
+                if node is not None:
+                    node.setItemVisibilityChecked(True)
         except ApiError as exc:
             self._show_error(str(exc))
+        except (OSError, RuntimeError) as exc:
+            self._show_error("Restyle failed: %s" % exc)
 
     def _show_stats(self, stats_data, measure, summary):
         parts = []
