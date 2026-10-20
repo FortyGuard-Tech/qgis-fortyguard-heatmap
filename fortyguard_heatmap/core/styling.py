@@ -5,6 +5,9 @@ Legend rules (from internal testing, 2026-10-19):
 * Label precision follows the data spread. FortyGuard temperature fields often
   span a few tenths of a degree across a site, so one decimal made several
   classes read identically ("21.9 - 21.9 °C").
+* Class breaks are computed from the numeric values only. QGIS's
+  updateClasses() counts a NULL attribute as 0, which stretched the lowest
+  class to "0.0 - 26.3 °C" whenever one tile had no value.
 * Zero-width classes produced by the quantile method on data with few distinct
   values are dropped; a uniform result gets exactly one class ("all tiles = 2.0 h").
 * QGIS matches a value to the first class whose [lower, upper] contains it,
@@ -15,6 +18,8 @@ Legend rules (from internal testing, 2026-10-19):
 """
 import contextlib
 
+import math
+
 from qgis.PyQt.QtCore import QVariant
 from qgis.PyQt.QtGui import QColor
 from qgis.core import (
@@ -22,6 +27,7 @@ from qgis.core import (
     QgsClassificationQuantile,
     QgsClassificationEqualInterval,
     QgsColorRampShader,
+    QgsFeatureRequest,
     QgsFillSymbol,
     QgsGradientColorRamp,
     QgsGradientStop,
@@ -70,14 +76,32 @@ def _ramp_for(unit_kind):
     return {"celsius": temperature_ramp, "hours": hours_ramp, "hour_of_day": hour_of_day_ramp}.get(unit_kind, temperature_ramp)()
 
 
+MAX_DECIMALS = 4
+
+
 def decimals_for_span(span):
-    """Number of decimals so that neighbouring class labels stay distinct."""
+    """Starting number of decimals for a data spread (refined by decimals_for_bounds)."""
     span = abs(float(span))
     if span >= 2.0:
         return 1
     if span >= 0.2:
         return 2
     return 3
+
+
+def decimals_for_bounds(bounds, start=None):
+    """Smallest number of decimals (<= MAX_DECIMALS) at which every class label is distinct
+    and no label reads "x - x"."""
+    if not bounds:
+        return 1
+    decimals = decimals_for_span(bounds[-1][1] - bounds[0][0]) if start is None else start
+    while decimals < MAX_DECIMALS:
+        labels = ["%.*f - %.*f" % (decimals, lo, decimals, hi) for lo, hi in bounds]
+        collapsed = any("%.*f" % (decimals, lo) == "%.*f" % (decimals, hi) for lo, hi in bounds)
+        if len(set(labels)) == len(labels) and not collapsed:
+            break
+        decimals += 1
+    return decimals
 
 
 def format_value(value, unit_kind, decimals=1):
@@ -125,13 +149,34 @@ def apply_temperature_style(layer, field_name, classes=7, method="quantile"):
     return apply_analysis_style(layer, field_name, "celsius", classes=classes, method=method)
 
 
-def _distinct_ranges(ranges):
-    """Drop zero-width duplicates created by the quantile method; keep order."""
+def numeric_values(layer, idx):
+    """Finite numeric values of attribute ``idx``; NULL and non-numeric attributes are skipped."""
+    request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry).setSubsetOfAttributes([idx])
+    values = []
+    for feature in layer.getFeatures(request):
+        v = feature[idx]
+        if v is None or (isinstance(v, QVariant) and v.isNull()):
+            continue
+        try:
+            fv = float(v)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(fv):
+            values.append(fv)
+    return values
+
+
+def class_bounds(values, classes, method="quantile"):
+    """(lower, upper) pairs from QGIS's classification methods, zero-width duplicates dropped."""
+    calc = QgsClassificationQuantile() if method == "quantile" else QgsClassificationEqualInterval()
     out = []
-    for rng in ranges:
-        if rng.lowerValue() == rng.upperValue() and out and out[-1].upperValue() >= rng.lowerValue():
+    for rng in calc.classes(list(values), int(classes)):
+        lo, hi = float(rng.lowerBound()), float(rng.upperBound())
+        if lo == hi and out and out[-1][1] >= lo:
             continue  # the value is already covered by the previous class (inclusive upper bound)
-        out.append(rng)
+        out.append((lo, hi))
+    if not out:
+        out = [(min(values), max(values))]
     return out
 
 
@@ -161,10 +206,10 @@ def apply_analysis_style(layer, field_name, unit_kind, classes=7, method=None):
             upper = float(HOUR_BOUNDS[i + 1]) - (HOUR_EPSILON if i < n - 1 else 0.0)
             renderer.addClassRange(QgsRendererRange(lower, upper, sym, hour_class_label(lower, upper)))
     else:
-        vmin, vmax = layer.minimumValue(idx), layer.maximumValue(idx)
-        if vmin is None or vmax is None:
+        values = numeric_values(layer, idx)
+        if not values:
             raise ApiError("Field '%s' has no numeric values to classify." % field_name, kind="malformed")
-        vmin, vmax = float(vmin), float(vmax)
+        vmin, vmax = min(values), max(values)
         if vmin == vmax:
             # A uniform result (common for small areas): one class, one honest label.
             sym = symbol.clone()
@@ -173,18 +218,13 @@ def apply_analysis_style(layer, field_name, unit_kind, classes=7, method=None):
         else:
             if method is None:
                 method = "quantile" if unit_kind == "celsius" else "equal"
-            renderer.setClassificationMethod(
-                QgsClassificationQuantile() if method == "quantile" else QgsClassificationEqualInterval())
-            renderer.updateClasses(layer, classes)
-            kept = _distinct_ranges(renderer.ranges())
-            if len(kept) != len(renderer.ranges()):
-                renderer.deleteAllClasses()
-                for rng in kept:
-                    renderer.addClassRange(QgsRendererRange(rng.lowerValue(), rng.upperValue(), rng.symbol().clone(), ""))
-                renderer.updateColorRamp(ramp)
-            decimals = decimals_for_span(vmax - vmin)
-            for i, rng in enumerate(renderer.ranges()):  # ranges() returns copies -> update by index
-                renderer.updateRangeLabel(i, range_label(rng.lowerValue(), rng.upperValue(), unit_kind, decimals))
+            bounds = class_bounds(values, classes, method)
+            n = len(bounds)
+            decimals = decimals_for_bounds(bounds)
+            for i, (lo, hi) in enumerate(bounds):
+                sym = symbol.clone()
+                sym.setColor(ramp.color(i / float(n - 1) if n > 1 else 0.5))
+                renderer.addClassRange(QgsRendererRange(lo, hi, sym, range_label(lo, hi, unit_kind, decimals)))
 
     layer.setRenderer(renderer)
     layer.triggerRepaint()
@@ -216,11 +256,12 @@ def apply_surface_style(layer, unit_kind, vmin, vmax, opacity=0.75):
     lo, hi, _widened = surface_colour_span(unit_kind, vmin, vmax)
     ramp = _ramp_for(unit_kind)
     unit = UNITS.get(unit_kind, "")
-    decimals = decimals_for_span(hi - lo)
+    steps = 6
+    decimals = decimals_for_bounds([(lo + (hi - lo) * i / float(steps), lo + (hi - lo) * (i + 1) / float(steps))
+                                    for i in range(steps)])
     shader = QgsRasterShader()
     ramp_shader = QgsColorRampShader(lo, hi, ramp, QgsColorRampShader.Interpolated, QgsColorRampShader.Continuous)
     items = []
-    steps = 6
     for i in range(steps + 1):
         v = lo + (hi - lo) * i / float(steps)
         items.append(QgsColorRampShader.ColorRampItem(v, ramp.color(i / float(steps)), format_value(v, unit_kind, decimals)))

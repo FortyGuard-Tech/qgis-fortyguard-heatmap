@@ -139,6 +139,10 @@ class HeatmapDialog(QDialog):
         self.last_fingerprint = None
         self._completed_requests = {}      # fingerprint -> (activity_id, path, when) for this session
         self._unfinished_activity = None    # activity id whose outcome is unknown (stopped / timed out)
+        self._session_activities = []       # (activity_id, request summary) of every submission this session
+        self._foreign_activity = False      # Check Again on an ID not submitted in this session
+        self._last_status_key = None
+        self._status_repeats = 0
         self._connected_layer = None
 
         self._build_ui()
@@ -342,7 +346,7 @@ class HeatmapDialog(QDialog):
         f.addRow("Measure (daily outputs)", measure_row)
 
         self.appearance_combo = _shrinkable(QComboBox())
-        self.appearance_combo.addItem("Smooth surface (interpolated raster, like the dashboard) + tiles layer hidden", APPEARANCE_SMOOTH)
+        self.appearance_combo.addItem("Smooth surface (interpolated estimate) + exact tiles layer hidden", APPEARANCE_SMOOTH)
         self.appearance_combo.addItem("Tiles only (exact API values per tile)", APPEARANCE_TILES)
         saved_app = QgsSettings().value(SETTING_APPEARANCE, APPEARANCE_SMOOTH)
         self.appearance_combo.setCurrentIndex(max(0, self.appearance_combo.findData(saved_app)))
@@ -376,26 +380,27 @@ class HeatmapDialog(QDialog):
         f.addRow("Max wait", self.deadline_spin)
         root.addWidget(opts)
 
-        # --- Developer settings (collapsed; not persisted)
-        self.dev_group = QgsCollapsibleGroupBox("Developer settings (advanced - leave collapsed for normal use)")
+        # --- Advanced settings (collapsed; not persisted)
+        self.dev_group = QgsCollapsibleGroupBox("Advanced settings (leave collapsed for normal use)")
         self.dev_group.setCollapsed(True)
         f = _form(self.dev_group)
-        self.base_url_combo = _shrinkable(QComboBox())
-        for label, url in contract.BASE_URL_CHOICES:
-            self.base_url_combo.addItem(label, url)
-        self.base_url_combo.setCurrentIndex(0)  # always start on production
-        self.base_url_combo.setToolTip("Keys are environment-specific. Switching clears the key field; the choice "
-                                       "is not remembered between sessions.")
-        f.addRow("API environment", self.base_url_combo)
         self.skip_checks_check = QCheckBox("Skip the coverage, area and duplicate pre-checks")
         self.skip_checks_check.setToolTip("The pre-checks exist because the API charges for empty and never-finishing "
                                           "jobs. Only skip them if you know the request is valid.")
         f.addRow("", self.skip_checks_check)
-        dev_hint = QLabel("Production (api.fortyguard.com) is the default for all users. The development environment "
-                          "is for FortyGuard developers with a development key only.")
-        dev_hint.setWordWrap(True)
-        dev_hint.setStyleSheet("color: #555; font-size: 11px;")
-        f.addRow("", dev_hint)
+        # The API environment selector is for FortyGuard developers only. The public build talks to
+        # api.fortyguard.com; the selector appears only when FORTYGUARD_DEV_ENVIRONMENT=1 is set.
+        self.base_url_combo = _shrinkable(QComboBox())
+        for label, url in contract.BASE_URL_CHOICES:
+            self.base_url_combo.addItem(label, url)
+        self.base_url_combo.setCurrentIndex(0)  # always production
+        self.base_url_combo.setToolTip("FortyGuard developers only. Keys are environment-specific: switching clears "
+                                       "the key field; the choice is not remembered between sessions.")
+        self.base_url_label = QLabel("API environment")
+        f.addRow(self.base_url_label, self.base_url_combo)
+        self.developer_mode = os.environ.get("FORTYGUARD_DEV_ENVIRONMENT", "") == "1"
+        self.base_url_combo.setVisible(self.developer_mode)
+        self.base_url_label.setVisible(self.developer_mode)
         root.addWidget(self.dev_group)
 
         root.addStretch(1)
@@ -409,7 +414,8 @@ class HeatmapDialog(QDialog):
         self.stop_btn = QPushButton("Stop Waiting")
         self.stop_btn.setToolTip("Stops polling locally only. The FortyGuard job keeps running on the server.")
         self.resume_btn = QPushButton("Check Again")
-        self.resume_btn.setToolTip("Poll the last activity ID again (no new submission).")
+        self.resume_btn.setToolTip("Poll the activity ID shown below again, without a new submission. You can also "
+                                   "paste the ID of an earlier request (see the log) to fetch its result.")
         btns.addWidget(self.generate_btn, 1)
         btns.addWidget(self.stop_btn)
         btns.addWidget(self.resume_btn)
@@ -428,8 +434,9 @@ class HeatmapDialog(QDialog):
         self.status_label.setStyleSheet("font-weight: bold;")
         grid.addRow("Status", self.status_label)
         self.activity_label = QLineEdit()
-        self.activity_label.setReadOnly(True)
-        self.activity_label.setPlaceholderText("(none yet)")
+        self.activity_label.setPlaceholderText("(none yet - paste an earlier activity ID here and click Check Again)")
+        self.activity_label.setToolTip("Filled in after each submission. Editable: paste the ID of an earlier request "
+                                       "from the log to fetch its result without paying again.")
         grid.addRow("Activity ID", self.activity_label)
         self.stats_label = _wrapping_label("-")
         grid.addRow("Area statistics", self.stats_label)
@@ -462,6 +469,7 @@ class HeatmapDialog(QDialog):
         self.save_key_btn.clicked.connect(self._save_key)
         self.forget_key_btn.clicked.connect(self._forget_key)
         self.demo_check.toggled.connect(self._on_demo_toggled)
+        self.activity_label.textChanged.connect(lambda _t: self._set_busy(bool(self.job and self.job.is_active)))
         self.layer_combo.layerChanged.connect(self._on_layer_changed)
         self.demo_aoi_btn.clicked.connect(self._add_demo_aoi_layer)
         self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
@@ -534,7 +542,8 @@ class HeatmapDialog(QDialog):
         self.progress.setVisible(busy)
         self.generate_btn.setEnabled(not busy)
         self.stop_btn.setEnabled(busy)
-        can_resume = (not busy) and bool(self.job and self.job.can_resume) and not self.last_demo
+        can_resume = (not busy) and not self.demo_check.isChecked() and (
+            bool(self.job and self.job.can_resume) or bool(self.activity_label.text().strip()))
         self.resume_btn.setEnabled(can_resume)
         for w in (self.key_edit, self.demo_check, self.layer_combo, self.filter_combo, self.start_date,
                   self.start_time, self.end_time, self.end_date, self.granularity_combo, self.output_dir,
@@ -553,6 +562,9 @@ class HeatmapDialog(QDialog):
         for b in (self.load_key_btn, self.save_key_btn, self.forget_key_btn):
             b.setEnabled(not on and credentials.auth_available())
         self.generate_btn.setText("Generate DEMO Heatmap (synthetic)" if on else "Generate Heatmap")
+        busy = bool(self.job and self.job.is_active)
+        self.resume_btn.setEnabled((not busy) and (not on) and (
+            bool(self.job and self.job.can_resume) or bool(self.activity_label.text().strip())))
         self.setWindowTitle("FortyGuard Temperature Intelligence Layer - DEMO MODE" if on else "FortyGuard Temperature Intelligence Layer")
 
     def _on_environment_changed(self, _index):
@@ -872,7 +884,7 @@ class HeatmapDialog(QDialog):
         return QMessageBox.question(self, title, text, QMessageBox.Yes | QMessageBox.No,
                                     QMessageBox.No) == QMessageBox.Yes
 
-    def _start_job(self, body):
+    def _new_job(self):
         self._dispose_job()
         self.job = HeatmapJob(self.client, deadline_s=self.deadline_spin.value() * 60, parent=self)
         self.job.submitted.connect(self._on_submitted)
@@ -881,6 +893,12 @@ class HeatmapDialog(QDialog):
         self.job.completed.connect(self._on_completed)
         self.job.failed.connect(self._on_failed)
         self.job.stopped.connect(self._on_stopped)
+        self._last_status_key = None
+        self._status_repeats = 0
+        return self.job
+
+    def _start_job(self, body):
+        self._new_job()
         self._set_busy(True)
         self.status_label.setText("Submitting...")
         self.job.submit(body)
@@ -895,9 +913,23 @@ class HeatmapDialog(QDialog):
     def _on_submitted(self, activity_id):
         self.last_activity_id = activity_id
         self.activity_label.setText(activity_id)
-        self.log_line("Submitted. activity_id = %s" % activity_id)
+        if self.last_demo:
+            self.log_line("Submitted (demo). activity_id = %s" % activity_id)
+            return
+        self._session_activities.append((activity_id, self.last_request_summary))
+        self.log_line("Submitted. activity_id = %s (%s). Keep this ID: paste it into the Activity ID field and click "
+                      "Check Again to fetch the result later." % (activity_id, self.last_request_summary))
 
     def _on_status(self, status, detail):
+        key = (status, detail)
+        elapsed = int(self.job.policy.elapsed_s) if self.job else 0
+        if key == self._last_status_key:
+            # same state as the previous check: update the status line in place, do not repeat the log line
+            self._status_repeats += 1
+            self.status_label.setText("%s - %s (check %d, %d s elapsed)" % (status, detail, self._status_repeats + 1, elapsed))
+            return
+        self._last_status_key = key
+        self._status_repeats = 0
         self.status_label.setText("%s - %s" % (status, detail))
         self.log_line("Status: %s (%s)" % (status, detail))
 
@@ -919,19 +951,48 @@ class HeatmapDialog(QDialog):
             self._unfinished_activity = activity_id
             self.status_label.setText("Stopped waiting (server job not cancelled)")
             self.log_line("Stopped waiting locally. The FortyGuard job %s may still complete on the server and be "
-                          "charged; use 'Check Again' later to fetch it without paying again." % activity_id, Qgis.Warning)
+                          "charged. To fetch it later, paste this ID into the Activity ID field and click 'Check Again' "
+                          "(no new charge), even after other requests." % activity_id, Qgis.Warning)
         else:
             self.status_label.setText("Stopped before submission")
             self.log_line("Stopped before any job was created; nothing was sent or charged.")
 
     def _on_resume(self):
-        if self.job is None or not self.job.can_resume:
+        """Check Again: poll the job's activity, or any activity ID pasted into the field."""
+        if self.job is not None and self.job.is_active:
             return
-        if self.client is None or not getattr(self.client, "has_api_key", lambda: False)():
-            self._show_error("Enter the API key again to check the existing activity.")
+        typed = self.activity_label.text().strip()
+        if self.demo_check.isChecked():
+            self._show_error("Check Again polls the FortyGuard API; untick Demo Mode first.")
             return
+        key = self._current_key()
+        if not key:
+            self._show_error("Enter your FortyGuard API key to check an activity.")
+            return
+        same_job = self.job is not None and self.job.can_resume and typed in ("", self.job.activity_id or "")
+        if same_job and self.client is not None and getattr(self.client, "has_api_key", lambda: False)():
+            self._foreign_activity = False
+            self._set_busy(True)
+            self.job.resume()
+            return
+        if not typed:
+            self._show_error("Paste an activity ID into the Activity ID field first.")
+            return
+        # another (earlier) activity: build a fresh job on the current key and poll that ID
+        known = dict(self._session_activities).get(typed)
+        self.client = HeatmapApiClient(key, base_url=self.base_url, parent=self)
+        self._foreign_activity = known is None
+        self.last_demo = False
+        self.last_request_summary = known or ("activity %s" % typed[:8])
+        self.last_fingerprint = None
+        self.last_aoi_polygon = None if known is None else self.last_aoi_polygon
+        self.last_map_data = None
+        self.last_stats = None
+        self.stats_label.setText("-")
+        self._new_job()
         self._set_busy(True)
-        self.job.resume()
+        self.log_line("Checking activity %s on %s (no new submission, nothing charged)." % (typed, self.base_url))
+        self.job.resume(typed)
 
     def _on_failed(self, message, kind):
         self._set_busy(False)
@@ -958,6 +1019,18 @@ class HeatmapDialog(QDialog):
     def _on_completed(self, map_data, stats_data):
         self.last_map_data = map_data
         self.last_stats = stats_data
+        if self._foreign_activity:
+            # The request that created this activity is unknown: read the analysis type from the result itself.
+            api_at = responses.analysis_stats(stats_data).get("analytic_type")
+            if api_at in contract.ANALYTIC_TYPES:
+                self.last_analytic_type = api_at
+            elif responses.result_schema(map_data) == "value":
+                self.last_analytic_type = contract.ANALYTIC_TYPE_EXCEEDANCE
+                self.log_line("The result carries 'value' tiles but stats_data names no analysis type; styled as hours.",
+                              Qgis.Warning)
+            else:
+                self.last_analytic_type = contract.ANALYTIC_TYPE_TCM
+            self.last_threshold = None
         at = self.last_analytic_type
         unit_kind = contract.UNIT_KIND.get(at, "celsius")
         activity_id = self.job.activity_id if self.job else ""

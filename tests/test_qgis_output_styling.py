@@ -141,6 +141,21 @@ class OutputStylingTests(unittest.TestCase):
         self.assertIsInstance(lyr.renderer(), QgsGraduatedSymbolRenderer)
         self.assertEqual(lyr.customProperty(output.PROP_MEASURE), "max_temperature")
 
+    def test_default_output_dir_uses_system_documents(self):
+        from qgis.PyQt.QtCore import QStandardPaths
+        d = output.default_output_dir()
+        self.assertTrue(d.endswith("FortyGuard Heatmaps"))
+        docs = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+        if docs:
+            self.assertEqual(os.path.dirname(d), os.path.normpath(docs))
+
+    def test_null_tile_does_not_become_zero_in_classes(self):
+        map_data, stats, gpath, mpath, layer = self._load("single_hour", "temperature")
+        n = styling.apply_temperature_style(layer, "temperature", classes=7)
+        first = layer.renderer().ranges()[0]
+        self.assertAlmostEqual(first.lowerValue(), 24.8051, places=3, msg="NULL must not be counted as 0")
+        self.assertEqual(len(styling.numeric_values(layer, layer.fields().indexOf("temperature"))), 181)
+
     def test_bad_output_dir(self):
         with self.assertRaises(ApiError):
             output.ensure_dir("")
@@ -251,6 +266,21 @@ class AnalysisStylingTests(unittest.TestCase):
         self.assertEqual(styling.decimals_for_span(0.21), 2)
         self.assertEqual(styling.decimals_for_span(0.05), 3)
         self.assertEqual(styling.decimals_for_span(8), 1)
+
+    def test_live_like_tiny_spread_with_ten_classes_has_distinct_labels(self):
+        # production run 2026-10-20: 150 tiles between 18.5132 and 18.7869 °C, 10 classes
+        import random
+        rnd = random.Random(7)
+        values = [18.5132 + (rnd.random() ** 3) * 0.2737 for _ in range(150)]
+        layer = self._value_layer(values, analytic="tcm", field="temperature")
+        styling.apply_analysis_style(layer, "temperature", "celsius", classes=10)
+        labels = [r.label() for r in layer.renderer().ranges()]
+        self.assertEqual(len(set(labels)), len(labels), labels)
+        for label in labels:
+            lo, hi = label.replace(" °C", "").split(" - ")
+            self.assertNotEqual(lo, hi, label)
+        self.assertEqual(styling.decimals_for_bounds([(18.5132, 18.5149), (18.5149, 18.52)]), 3)
+        self.assertEqual(styling.decimals_for_bounds([(1.0, 2.0), (2.0, 3.0)]), 1)
 
     def test_few_distinct_values_no_duplicate_classes(self):
         layer = self._value_layer([0.0] * 20 + [1.0] * 20 + [3.0] * 5)

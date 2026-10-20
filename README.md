@@ -1,4 +1,4 @@
-# FortyGuard Temperature Intelligence Layer – QGIS plugin (0.5.0)
+# FortyGuard Temperature Intelligence Layer – QGIS plugin (0.5.2)
 
 Install the plugin, click the FortyGuard toolbar icon, enter **your own**
 FortyGuard API key, select an area and date, click **Generate Heatmap**, and
@@ -147,7 +147,7 @@ the plan allowance, block above 500 mi²), the dates (warn when the window ends
 within the last 7 days) and whether the identical request was already completed
 (in this session or as a `request_fingerprint` in a sidecar in the output
 folder). All checks live in `fortyguard_heatmap/core/preflight.py` and can be
-bypassed in **Developer settings**. The confirmation dialog states the expected
+bypassed in **Advanced settings**. The confirmation dialog states the expected
 cost for the checked plan.
 
 ## 3. Run a real request
@@ -161,12 +161,12 @@ data for the most recent week is usually not available yet.
 
 1. Paste your API key (use **Show** to check it). The key stays in memory only.
    Click **Check key and credits** to see your plan, key status and remaining
-   credits before spending anything. The plugin always starts on the
-   production API (`api.fortyguard.com`). FortyGuard developers with a
-   development key can expand **Developer settings** and pick the development
-   environment; switching clears the key field and the choice is not saved.
-   Keys are environment-specific: a development key is rejected with HTTP 401
-   by production. Optionally click **Save key (encrypted)** to store it in the
+   credits before spending anything. The public build talks to the
+   production API (`api.fortyguard.com`) only. FortyGuard developers can start
+   QGIS with `FORTYGUARD_DEV_ENVIRONMENT=1` to get an environment selector in
+   **Advanced settings** (switching clears the key field; the choice is not
+   saved; a development key is rejected with HTTP 401 by production).
+   Optionally click **Save key (encrypted)** to store it in the
    QGIS Authentication database (you will be asked for the QGIS master
    password); **Load saved key** restores it next time, **Forget saved key**
    deletes it.

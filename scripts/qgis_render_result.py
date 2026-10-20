@@ -21,6 +21,10 @@ REPORT = {"steps": [], "ok": False}
 
 
 def _root():
+    """Repository root: FG_ROOT, else the working directory (the plugin may be a copy inside the QGIS profile)."""
+    root = os.environ.get("FG_ROOT") or os.getcwd()
+    if os.path.isdir(os.path.join(root, "scripts")):
+        return root
     import fortyguard_heatmap
     return os.path.dirname(os.path.dirname(os.path.realpath(fortyguard_heatmap.__file__)))
 

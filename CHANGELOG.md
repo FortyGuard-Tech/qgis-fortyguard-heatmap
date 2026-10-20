@@ -1,5 +1,33 @@
 # Changelog – FortyGuard Temperature Intelligence Layer (QGIS plugin)
 
+## 0.5.2 – 2026-10-20
+
+Second internal testing round (Windows 11 / QGIS 3.44.15; testers Shreya,
+Mudethir, Snehil) and a self-review of the whole plugin.
+
+- **Legend classes from numeric values only.** QGIS's `updateClasses()` counts a
+  NULL attribute as 0, so one tile without a value stretched the lowest class to
+  "0.0 - 26.3 °C" and shifted every quantile break. Breaks are now computed with
+  `QgsClassificationMethod.classes(values, n)` on the finite values.
+- **Default output folder** is the Documents folder reported by the operating
+  system (`QStandardPaths`), so on Windows with OneDrive-redirected Documents
+  the results appear where File Explorer shows Documents.
+- **Check Again for any activity.** The Activity ID field is editable: paste the
+  ID of an earlier request (every submission logs it) and click Check Again to
+  fetch its result without paying again, even after other requests were made.
+  The analysis type of such a result is read from the API's `stats_data`.
+- **Status log** no longer repeats "Processing (Job still running)" every poll:
+  the status line updates in place with the check count and elapsed time, and a
+  log line is written only when the status changes.
+- **Gateway errors on submit** (HTTP 502/503/504) are explained as a server-side
+  timeout that is not a key problem and whose outcome is uncertain (check
+  credits, then retry), instead of "no job was created".
+- Appearance option reads "Smooth surface (interpolated estimate) + exact tiles
+  layer hidden" (no dashboard reference).
+- The API environment selector is hidden in the public build (shown only with
+  `FORTYGUARD_DEV_ENVIRONMENT=1`); the group is now "Advanced settings".
+- Plugin description rewritten as short sections with bullet points.
+
 ## 0.5.1 – 2026-10-20
 
 - **Legend classes** option in the Output box (3 to 20, default 10, remembered):

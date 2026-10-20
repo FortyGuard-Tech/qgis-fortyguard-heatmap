@@ -43,6 +43,40 @@ records the API facts behind them.
 Automated result for 0.5.0 (2026-10-20, macOS 27, QGIS 3.44.15): `scripts/run_tests.sh`
 → **95 pure-Python tests and 90 QGIS-runtime tests, 0 failed** (1 keychain test skipped headless).
 
+### 0b. Second round (2026-10-20, Windows 11 / QGIS 3.44.15; Shreya, Mudethir, Snehil) → 0.5.2
+
+Mudethir's Windows run passed: load/unload/reopen clean, live Snapshot completed in 25 s, 55 of 55
+tiles and the statistics identical to a direct `GET /v1/status/{id}`; it also confirmed the credits and
+legend findings of round 1 on Windows (fixed in 0.5.0).
+
+| # | Reported by | Issue | Root cause | Fix in 0.5.2 | Test |
+|---|-------------|-------|------------|--------------|------|
+| 27 | Mudethir | Lowest legend class "0.0 - 26.3 °C" although the data minimum is 24.81 °C when one tile has no value | `QgsGraduatedSymbolRenderer.updateClasses()` counts a NULL attribute as 0 (reproduced on macOS too) | Breaks computed with `QgsClassificationMethod.classes(values, n)` on the finite values only | `test_null_tile_does_not_become_zero_in_classes`, `test_demo_single_hour` |
+| 28 | Mudethir | Default output folder ignores OneDrive-redirected Documents on Windows | `expanduser("~")/Documents` | `QStandardPaths.writableLocation(DocumentsLocation)` | `test_default_output_dir_uses_system_documents` |
+| 29 | Shreya | Cannot check a stopped request after sending another one | Only the last job's ID could be polled | Activity ID field is editable; Check Again polls any pasted ID on the current key; every submission logs its ID; the analysis type of a foreign result is read from `stats_data` | `test_check_again_with_pasted_activity…`, `test_resume_of_unknown_activity…` |
+| 30 | Shreya | HTTP 504 on submit for a small area (Exceedance / Peak time, 60 m); same request worked on the second try; "does the key need to be loaded every time?" | Transient gateway timeout; the message did not say it was server-side | Submit 502/503/504 message: server-side, not a key problem, outcome uncertain, check credits then retry | `test_submit_gateway_timeout_is_uncertain_not_a_key_problem` |
+| 31 | Snehil | "Status: Processing" repeated every poll | One log line per status check | Status line updates in place (check count, elapsed); log only on change | `test_demo_single_hour` |
+| 32 | Snehil | Appearance option refers to "the dashboard" | Wording | "Smooth surface (interpolated estimate) + exact tiles layer hidden" | `test_environment_selector_hidden_in_public_build` |
+| 33 | Snehil | Developer settings expose the development environment | Selector always built | Hidden unless `FORTYGUARD_DEV_ENVIRONMENT=1`; group renamed "Advanced settings" | same |
+| 34 | Snehil | Plugin description cluttered | One long paragraph per section | Short sections with bullets (WHAT YOU GET / HOW IT WORKS / EXAMPLE / GOOD TO KNOW / ABOUT) | metadata |
+| 35 | Snehil | Time-handling helper text to be confirmed (blocked) | – | Text unchanged: it states what the FortyGuard API team confirmed on 2026-10-13 (inputs = local time of the area, peak hours = UTC). Open for Fawad to re-confirm. | – |
+| 36 | Shreya | Install needed "Show also experimental plugins" | 0.4.2 was experimental | 0.5.0+ is not experimental | metadata |
+| 37 | self-review | Production run with 10 classes showed "18.51 - 18.51 °C" labels for a 0.27 °C spread | Fixed decimals per spread were not enough for clustered values | Decimals increase (up to 4) until every label is distinct and no label reads "x - x" (tiles and surface) | `test_live_like_tiny_spread_with_ten_classes_has_distinct_labels` |
+
+### 0c. Live verification on production after the fixes (2026-10-20, Hackathon key, macOS, QGIS 3.44.15)
+
+| Check | Result |
+|-------|--------|
+| Request for yesterday (free) | HTTP 400 → kind `no_data`: "no temperature data yet … choose dates ending on or before 2026-10-13 … Nothing was charged". |
+| 1 July → 1 August (32 inclusive days) | Blocked locally before submission with the day count and the Calendar month hint. |
+| Full dialog run with the **default date** (today − 7 = 2026-10-13), Demo AOI (NYC, 1.71 km²), 100 m, twice (`scripts/qgis_live_dialog_check.py`, `dist/live_dialog_report.json`) | Both completed (activities b291e768, c2a98efa): 150 tiles, layer + smooth surface added, file and sidecar saved without the key, project reopened. Confirmation showed the plan-specific cost text and coverage status "inside documented coverage". |
+| Credits shown by "Check key and credits" | 8,538,680 before the second run → 8,534,460 after = exactly 4,220, while `cycle_remaining_credits` stayed frozen at 9,341,680 (the figure Mudethir saw). |
+| San Jose 4 km square, 60 m, 2024-07-15..21 (`scripts/live_check.py`) | Completed: 4,290 tiles, mean 21.6–22.3 °C, max 36.4–37.4 °C; review screenshots in `docs/report/images/*san_jose*`. |
+
+Cost of this verification: 3 completed requests × 4,220 = 12,660 credits on the shared Hackathon key.
+
+Automated result for 0.5.2: `scripts/run_tests.sh` → **96 pure-Python and 98 QGIS-runtime tests, 0 failed**.
+
 ---
 
 # Earlier report – 0.3.1 (kept for history)

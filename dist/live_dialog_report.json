@@ -1,21 +1,13 @@
 {
   "steps": [
     {
-      "name": "loadPlugin",
-      "ok": true
-    },
-    {
-      "name": "startPlugin",
-      "ok": true
-    },
-    {
       "name": "dialog_shown",
       "ok": true
     },
     {
       "name": "environment_selected",
       "ok": true,
-      "base_url": "https://tos-enterprise-api.dev.app.fortyguard.com",
+      "base_url": "https://api.fortyguard.com",
       "developer_group_collapsed": true
     },
     {
@@ -27,18 +19,23 @@
     {
       "name": "credits_check",
       "ok": true,
-      "text": "Plan: Premium (One-Time) | Key: active | Credits remaining: 995,780 | of 1,000,000 | Key expires: 2026-10-19T14:36:30.783168Z"
+      "text": "Plan: Hackathon (Hackathon) | Key: active | Credits remaining: 8,538,680 | of 10,042,940 | Key expires: 2027-09-15T12:15:58.642744Z"
     },
     {
       "name": "aoi_selected",
       "ok": true,
       "crs": "EPSG:3857",
-      "selection_text": "Feature 1 of 'Demo AOI (synthetic test area)' | source CRS EPSG:3857 | ~1.71 km\u00b2 (0.66 mi\u00b2) | sent as EPSG:4326 Polygon"
+      "selection_text": "Feature 1 of 'Demo AOI (synthetic test area)' | source CRS EPSG:3857 | ~1.71 km\u00b2 (0.66 mi\u00b2) | sent as EPSG:4326 Polygon | inside documented coverage (contiguous United States)"
+    },
+    {
+      "name": "date_used",
+      "ok": true,
+      "date": "2026-10-13"
     },
     {
       "name": "confirmation_shown_and_accepted",
       "ok": true,
-      "text": "Submit a live FortyGuard request?\n\nEnvironment: https://tos-enterprise-api.dev.app.fortyguard.com\nArea: feature 1 of 'Demo AOI (synthetic test area)' (~1.71 km\u00b2 / 0.66 mi\u00b2)\nRequest: 2024-07-15 14:00 | 100 m (filter type 1, tcm)\n\nA completed request consumes credits from your plan (documented: 3,500 on API Basic/Startup, 4,220 on API Premium). Coverage is documented as United States only.\n\nContinue"
+      "text": "Submit a live FortyGuard request?\n\nEnvironment: https://api.fortyguard.com\nAnalysis: Temperature / Snapshot (\u00b0C)\nArea: feature 1 of 'Demo AOI (synthetic test area)' (~1.71 km\u00b2 / 0.66 mi\u00b2)\nRequest: 2026-10-13 | 100 m (filter type 3)\n\nYour plan (Hackathon) has no documented per-request cost. In internal testing every completed request cost 4,220 credits regardless of plan, area or resolution. Credit"
     },
     {
       "name": "job_active",
@@ -54,27 +51,24 @@
     {
       "name": "activity_id",
       "ok": true,
-      "activity_id": "69a66823-c9b8-400c-8400-d7a7a67c0c6f"
+      "activity_id": "c2a98efa-930e-4c1c-8258-08005de1126d"
     },
     {
       "name": "status_polling_seen",
       "ok": true,
       "statuses": [
-        "[10:00:17] Status: Processing (Job still running)",
-        "[10:00:20] Status: Processing (Job still running)",
-        "[10:00:24] Status: Processing (Job still running)",
-        "[10:00:27] Status: Processing (Job still running)",
-        "[10:00:31] Status: Processing (Job still running)",
-        "[10:00:34] Status: Completed (Result received)"
+        "[16:21:51] Status: Submitted (Waiting for the first status check)",
+        "[16:21:56] Status: Processing (Job still running)",
+        "[16:22:09] Status: Completed (Result received)"
       ]
     },
     {
       "name": "result_layer_added",
       "ok": true,
-      "layer_name": "FortyGuard tcm mean \u00b0C | 2024-07-15 14:00 | 100 m",
+      "layer_name": "FortyGuard tcm mean \u00b0C | 2026-10-13 | 100 m",
       "features": 150,
       "crs": "EPSG:4326",
-      "source": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2024-07-1514_00_100m_69a66823_20261013_100034.geojson",
+      "source": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2026-10-13_100m_c2a98efa_20261020_162209.geojson",
       "demo_flag": "false"
     },
     {
@@ -85,48 +79,51 @@
       "name": "styled_graduated",
       "ok": true,
       "attribute": "average_temperature",
-      "classes": 7,
+      "classes": 10,
       "labels": [
-        "31.9 - 31.9 \u00b0C",
-        "31.9 - 31.9 \u00b0C",
-        "31.9 - 32.0 \u00b0C",
-        "32.0 - 32.2 \u00b0C",
-        "32.2 - 32.4 \u00b0C",
-        "32.4 - 32.9 \u00b0C",
-        "32.9 - 33.1 \u00b0C"
+        "18.51 - 18.51 \u00b0C",
+        "18.51 - 18.52 \u00b0C",
+        "18.52 - 18.52 \u00b0C",
+        "18.52 - 18.53 \u00b0C",
+        "18.53 - 18.56 \u00b0C",
+        "18.56 - 18.59 \u00b0C",
+        "18.59 - 18.63 \u00b0C",
+        "18.63 - 18.68 \u00b0C",
+        "18.68 - 18.73 \u00b0C",
+        "18.73 - 18.79 \u00b0C"
       ]
     },
     {
       "name": "numeric_field",
       "ok": true,
       "type": "Real",
-      "min": 31.887,
-      "max": 33.1424
+      "min": 18.5132,
+      "max": 18.7869
     },
     {
       "name": "stats_shown",
       "ok": true,
-      "text": "API stats_data (\u00b0C): min 31.89, max 33.14, mean 32.26, sd 0.41\nTiles 'average_temperature': 150 values, min 31.89, max 33.14, mean 32.26 \u00b0C; 0 missing"
+      "text": "API stats_data (\u00b0C): min 18.51, max 18.79, mean 18.59, sd 0.09\nMeasure 'average_temperature': 150 valid tiles, range 18.51 to 18.79 \u00b0C (spread 0.27, mean 18.59); 0 missing"
     },
     {
       "name": "file_saved",
       "ok": true,
-      "path": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2024-07-1514_00_100m_69a66823_20261013_100034.geojson"
+      "path": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2026-10-13_100m_c2a98efa_20261020_162209.geojson"
     },
     {
       "name": "meta_has_no_key",
       "ok": true,
-      "activity": "69a66823-c9b8-400c-8400-d7a7a67c0c6f"
+      "activity": "c2a98efa-930e-4c1c-8258-08005de1126d"
     },
     {
       "name": "dialog_screenshot",
       "ok": true,
-      "path": "/Users/mustafahamdy/Downloads/QGIS inetgration/dist/live_dialog_screenshot.png"
+      "path": "/Users/mustafahamdy/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins/dist/live_dialog_screenshot.png"
     },
     {
       "name": "canvas_screenshot",
       "ok": true,
-      "path": "/Users/mustafahamdy/Downloads/QGIS inetgration/dist/live_dialog_canvas.png"
+      "path": "/Users/mustafahamdy/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins/dist/live_dialog_canvas.png"
     },
     {
       "name": "project_saved",
@@ -139,6 +136,6 @@
     }
   ],
   "ok": true,
-  "started": "2026-10-13 09:59:56",
-  "finished": "2026-10-13 10:00:38"
+  "started": "2026-10-20 16:21:45",
+  "finished": "2026-10-20 16:22:13"
 }

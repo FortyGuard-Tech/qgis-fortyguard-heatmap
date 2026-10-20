@@ -75,6 +75,15 @@ class SubmitParsingTests(unittest.TestCase):
         self.assertFalse(cm.exception.retryable)
         self.assertIn("nothing was charged", str(cm.exception))
 
+    def test_submit_gateway_timeout_is_uncertain_not_a_key_problem(self):
+        for code in (502, 503, 504):
+            with self.assertRaises(ApiError) as cm:
+                responses.parse_submit_response(code, b"upstream request timeout")
+            self.assertEqual(cm.exception.kind, "server")
+            self.assertIn("not a key problem", str(cm.exception))
+            self.assertIn("may or may not", str(cm.exception))
+            self.assertNotIn("nothing was charged", str(cm.exception))
+
     def test_http_error_without_json_body(self):
         with self.assertRaises(ApiError) as cm:
             responses.parse_submit_response(502, b"<html>Bad gateway</html>")

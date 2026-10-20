@@ -1,4 +1,4 @@
-# FortyGuard Temperature Intelligence Layer for QGIS – user guide (0.5.1)
+# FortyGuard Temperature Intelligence Layer for QGIS – user guide (0.5.2)
 
 Generate FortyGuard temperature heatmaps (tcm, °C) for a polygon in your QGIS
 project and add them as styled layers, using **your own FortyGuard API key**.
@@ -39,7 +39,9 @@ and Ubuntu Linux (QGIS 3.40.15). QGIS 4 (Qt 6) is not supported yet.
 5. **Output** – resolution (60 / 80 / 100 m), the measure to style for daily
    outputs (mean / minimum / maximum), the appearance, the number of **legend
    classes** (3 to 20, default 10; more classes show finer differences), the
-   output folder (default `Documents/FortyGuard Heatmaps`) and the maximum wait.
+   output folder (default: the `FortyGuard Heatmaps` folder inside your
+   Documents folder as the system reports it, e.g. under OneDrive on Windows)
+   and the maximum wait.
 6. Click **Generate Heatmap**, read the confirmation and continue. Before a
    paid request the plugin checks the area (coverage, size), the dates and
    whether the identical request was already completed, and either warns or
@@ -49,12 +51,14 @@ and Ubuntu Linux (QGIS 3.40.15). QGIS 4 (Qt 6) is not supported yet.
 **Stop Waiting** only stops the plugin from polling; the FortyGuard job keeps
 running on the server (if you stop while the request is being submitted, the
 plugin still waits for the activity ID so the paid job is not lost). **Check
-Again** polls the same activity ID later without sending a new request.
+Again** polls the activity ID shown in the field without sending a new request.
+The field is editable: every submission logs its activity ID, so you can paste
+an earlier ID there and fetch that result later, even after other requests.
 
 ## Pre-checks before a paid request
 
 The API charges for some requests that return nothing useful, so the plugin
-checks first (the API remains the authority; *Developer settings ▸ Skip the
+checks first (the API remains the authority; *Advanced settings ▸ Skip the
 pre-checks* bypasses them):
 
 | Check | Result |
@@ -94,7 +98,7 @@ class ("all tiles = 2.0 h").
 
 By default the plugin shows a **smooth surface**: the same API tiles painted
 onto a fine grid, blurred and clipped to your area, with a continuous colour
-ramp (like the FortyGuard dashboard). The exact tiles layer is added hidden
+ramp. The exact tiles layer is added hidden
 underneath; tick it in the Layers panel to read exact values. Choose
 **Tiles only** in the Appearance box to skip the surface. The surface is a
 presentation layer: values between tile centres are estimates. Its colour
@@ -121,7 +125,8 @@ are named `[DEMO - synthetic] …` and are never FortyGuard analyses.
 
 | Message | Meaning |
 |---|---|
-| Invalid or missing API key (HTTP 401) | The key is wrong, expired, or belongs to a different API environment. |
+| Invalid or missing API key (HTTP 401) | The key is wrong or expired. |
+| The FortyGuard gateway did not answer in time while submitting (HTTP 502/503/504) | A server-side timeout, not a key problem. The job may or may not exist: check your credits, then retry the same request in a minute. |
 | HTTP 403 | Your plan does not include this feature, or credits/authorisation are insufficient. |
 | FortyGuard has no temperature data yet for part of the selected period (HTTP 400) | The most recent days are not available yet; choose dates up to about a week ago. Nothing was charged. |
 | HTTP 400/422 + API message | The request was rejected: area above the plan cap, date out of range, polygon outside the covered region, or invalid polygon. Nothing was charged. |

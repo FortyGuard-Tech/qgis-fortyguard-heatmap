@@ -10,6 +10,7 @@ import math
 import os
 import re
 
+from qgis.PyQt.QtCore import QStandardPaths
 from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer
 
 from . import contract
@@ -33,8 +34,20 @@ MAX_STEM_CHARS = 120   # keeps file names well inside every file system's 255-by
 SIBLING_SUFFIXES = (".geojson", ".meta.json", "_smooth.tif", "_EMPTY.meta.json")
 
 
+def documents_dir():
+    """The user's real Documents folder as the OS reports it (on Windows often under OneDrive)."""
+    path = ""
+    try:
+        path = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation) or ""
+    except Exception:  # pragma: no cover - defensive, Qt should always answer
+        path = ""
+    if path and os.path.isdir(os.path.dirname(path) or path):
+        return os.path.normpath(path)
+    return os.path.join(os.path.expanduser("~"), "Documents")
+
+
 def default_output_dir():
-    return os.path.join(os.path.expanduser("~"), DEFAULT_OUTPUT_SUBDIR)
+    return os.path.join(documents_dir(), "FortyGuard Heatmaps")
 
 
 def ensure_dir(path):

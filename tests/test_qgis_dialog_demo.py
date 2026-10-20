@@ -247,6 +247,11 @@ class DialogDemoTests(unittest.TestCase):
     def test_demo_single_hour(self):
         dlg, lyr = self._run_demo(0)
         self.assertTrue(lyr.name().startswith("[DEMO - synthetic]"))
+        # the fixture has one NULL tile: the lowest class must start at the data minimum, not at 0
+        self.assertAlmostEqual(lyr.renderer().ranges()[0].lowerValue(), 24.8051, places=3)
+        # the status log does not repeat the same "Processing" line on every poll
+        self.assertEqual(dlg.log.toPlainText().count("Status: Processing (Job still running)"), 1)
+        self.assertIn("activity_id = demo-", dlg.log.toPlainText())
         self.assertIn("temperature °C", lyr.name())
         self.assertEqual(lyr.customProperty(output.PROP_DEMO), "true")
         self.assertEqual(lyr.customProperty(output.PROP_MEASURE), "temperature")
@@ -308,14 +313,47 @@ class DialogDemoTests(unittest.TestCase):
                         or os.path.isdir(dlg.output_dir.filePath()))
         self.assertIn("api-pricing", dlg.findChildren(type(dlg.selection_label))[0].text())
 
-    def test_environment_switch_clears_key(self):
+    def test_environment_selector_hidden_in_public_build(self):
         dlg = HeatmapDialog(self.iface)
+        self.assertFalse(dlg.base_url_combo.isVisibleTo(dlg))
+        self.assertFalse(dlg.base_url_label.isVisibleTo(dlg))
+        self.assertEqual(dlg.base_url, contract.DEFAULT_BASE_URL)
+        self.assertNotIn("dashboard", dlg.appearance_combo.itemText(0).lower())
+        self.assertNotIn("Developer", dlg.dev_group.title())
+
+    def test_environment_switch_clears_key(self):
+        os.environ["FORTYGUARD_DEV_ENVIRONMENT"] = "1"
+        try:
+            dlg = HeatmapDialog(self.iface)
+        finally:
+            os.environ.pop("FORTYGUARD_DEV_ENVIRONMENT", None)
+        self.assertTrue(dlg.base_url_combo.isVisibleTo(dlg))
         dlg.key_edit.setText("SECRET-KEY-prod")
         dlg.base_url_combo.setCurrentIndex(dlg.base_url_combo.findData(contract.DEV_BASE_URL))
         self.assertEqual(dlg.key_edit.text(), "")
         self.assertEqual(dlg.base_url, contract.DEV_BASE_URL)
         self.assertNotIn("SECRET-KEY", dlg.log.toPlainText())
         self.assertIn("cleared", dlg.log.toPlainText())
+
+    def test_check_again_with_pasted_activity_requires_key_and_not_demo(self):
+        dlg = HeatmapDialog(self.iface)
+        shown = []
+        dlg._show_error = lambda text: shown.append(text)
+        self.assertFalse(dlg.resume_btn.isEnabled())
+        dlg.activity_label.setText("4f35f470-ee05-4dfb-ba56-c61393b0a5eb")
+        self.assertTrue(dlg.resume_btn.isEnabled(), "a pasted activity ID enables Check Again")
+        dlg.resume_btn.click()
+        self.assertEqual(len(shown), 1); self.assertIn("API key", shown[0])
+        dlg.key_edit.setText("k"); dlg.demo_check.setChecked(True)
+        self.assertFalse(dlg.resume_btn.isEnabled())
+        dlg.demo_check.setChecked(False)
+        dlg.key_edit.setText("some-key")
+        dlg.resume_btn.click()   # builds a job on the typed id (network call to production is aborted on shutdown)
+        self.assertIsNotNone(dlg.job)
+        self.assertTrue(dlg.job.is_active)
+        self.assertTrue(dlg._foreign_activity)
+        self.assertIn("no new submission", dlg.log.toPlainText())
+        dlg.shutdown()
 
     def test_check_credits_requires_key(self):
         dlg = HeatmapDialog(self.iface)

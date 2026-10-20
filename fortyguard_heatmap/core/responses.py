@@ -123,6 +123,11 @@ def error_for_http_status(http_status, body=None, context="request"):
         return ApiError("The API rejected the input (HTTP %d). %s" % (http_status, documented) + suffix,
                         kind="invalid_input", http_status=http_status)
     if http_status is not None and http_status >= 500:
+        if context == "submit" and http_status in (502, 503, 504):
+            return ApiError("The FortyGuard gateway did not answer in time while submitting (HTTP %d). This is a "
+                            "server-side problem, not a key problem. The job may or may not have been created; "
+                            "check your credits usage, then try the same request again in a minute."
+                            % http_status + suffix, kind="server", http_status=http_status)
         if context == "submit":
             return ApiError("FortyGuard service error while submitting (HTTP %d). No job was created and nothing was "
                             "charged; try again in a moment." % http_status + suffix,

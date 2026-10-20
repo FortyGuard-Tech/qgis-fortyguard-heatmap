@@ -28,6 +28,10 @@ from qgis.utils import iface, loadPlugin, startPlugin, plugins, active_plugins
 
 
 def _root():
+    """Repository root: FG_ROOT, else the working directory (the plugin may be a copy inside the QGIS profile)."""
+    root = os.environ.get("FG_ROOT") or os.getcwd()
+    if os.path.isdir(os.path.join(root, "scripts")):
+        return root
     import fortyguard_heatmap
     return os.path.dirname(os.path.dirname(os.path.realpath(fortyguard_heatmap.__file__)))
 
@@ -81,7 +85,8 @@ def main():
 
         env = os.environ.get("FG_ENV", "prod")
         want = contract.DEV_BASE_URL if env == "dev" else contract.DEFAULT_BASE_URL
-        dlg.base_url_combo.setCurrentIndex(dlg.base_url_combo.findData(want))
+        if env == "dev":
+            dlg.base_url_combo.setCurrentIndex(dlg.base_url_combo.findData(want))
         step("environment_selected", dlg.base_url == want, base_url=want,
              developer_group_collapsed=dlg.dev_group.isCollapsed())
 
@@ -113,7 +118,10 @@ def main():
                  selection_text=dlg.selection_label.text())
             filter_type = int(os.environ.get("FG_FILTER", "3"))
             dlg.filter_combo.setCurrentIndex(dlg.filter_combo.findData(filter_type))
-            dlg.start_date.setDate(QDate(2024, 7, 15))
+            fg_date = os.environ.get("FG_DATE")   # default: the dialog's own default date (today - latency)
+            if fg_date:
+                dlg.start_date.setDate(QDate.fromString(fg_date, "yyyy-MM-dd"))
+            step("date_used", True, date=dlg.start_date.date().toString("yyyy-MM-dd"))
             st = os.environ.get("FG_START_TIME", "14:00")
             dlg.start_time.setTime(QTime.fromString(st, "HH:mm"))
             dlg.granularity_combo.setCurrentIndex(dlg.granularity_combo.findData(100))
