@@ -100,12 +100,44 @@ FILTER_TYPE_LABELS = {
 MIN_DATE_ISO = "2019-01-01"           # "Supported range: 2019-01-01 through 12 hours past the current time."
 FORECAST_HOURS_AHEAD = 12
 MAX_RANGE_OF_HOURS = 23               # Known Limitations: "Max supported range for filter_type = 2 — 23Hrs"
-MAX_RANGE_OF_DAYS = 31                # Create Heatmap page: "Range of Days — week / month, ≤ 1 month"
+MAX_RANGE_OF_DAYS = 31                # Create Heatmap page: "Range of Days — week / month, ≤ 1 month"; end date inclusive
+# Observed (internal testing 2026-10-19, production): the documented "now + 12 h" limit is not met in
+# practice. Requests for the last few days were rejected with HTTP 400 "Temperature data is unavailable
+# for one or more hours in the selected date/time range"; the latest day that completed was 5 days back.
+# The plugin therefore defaults to dates this many days ago and warns for more recent windows.
+DATA_LATENCY_DAYS = 7
+NO_DATA_MESSAGE_MARKERS = ("data is unavailable", "unavailable for one or more hours", "no data available")
 
 # Plan limits (documented 2026-10-12). Enforced server-side; shown to the user only.
 AREA_CAP_SQ_MI = {"API Basic": 10, "API Startup": 10, "API Premium": 50}
 CREDITS_PER_REQUEST = {"API Basic": 3500, "API Startup": 3500, "API Premium": 4220}
+# Observed in internal testing (2026-10-19): every completed request on the tested Premium and Hackathon
+# keys cost exactly this many credits, whatever the area or resolution. Empty "Completed" results
+# (0 tiles) were charged too; HTTP 400 rejections and jobs reported "Failed" were free.
+CREDITS_PER_REQUEST_OBSERVED = 4220
+# Area pre-checks (client side; the API remains the authority).
+AREA_WARN_SQ_MI = max(AREA_CAP_SQ_MI.values())   # above the largest documented plan allowance -> warn
+# Observed: 400 mi2 still completed (103,099 tiles), ~1,300 mi2 was accepted but the status endpoint
+# returned HTTP 504 on every check and the job never finished although credits were charged.
+AREA_BLOCK_SQ_MI = 500
 COVERAGE_NOTE = "United States only (documented regional coverage for all plans)."
+# Generous outlines of the documented coverage as (lon, lat) rings. The contiguous US outline is a
+# coarse hand-drawn polygon buffered outward by roughly half a degree, so no US site is excluded while
+# areas clearly in Canada, Mexico or the ocean are flagged. An area that touches none of these outlines
+# cannot return tiles; in testing such requests completed with 0 tiles and were still charged
+# (Paris, London, open ocean).
+COVERAGE_OUTLINES = (
+    ("contiguous United States", (
+        (-124.9, 48.6), (-123.0, 49.3), (-95.0, 49.6), (-94.3, 49.6), (-89.3, 48.6), (-84.0, 47.2), (-82.2, 45.6),
+        (-82.3, 43.0), (-82.9, 42.0), (-79.6, 42.7), (-78.3, 43.3), (-79.3, 43.6), (-76.2, 44.3), (-74.6, 45.2), (-71.4, 45.3),
+        (-70.8, 45.6), (-69.1, 47.7), (-67.6, 47.3), (-66.6, 44.7), (-69.3, 41.0), (-72.8, 39.8), (-74.8, 37.0),
+        (-75.0, 34.8), (-79.8, 31.5), (-79.8, 25.0), (-81.9, 24.2), (-83.6, 29.0), (-88.0, 29.7), (-93.5, 29.0),
+        (-96.9, 25.3), (-99.3, 26.5), (-100.0, 27.8), (-101.6, 29.5), (-104.7, 29.3), (-106.7, 31.5), (-111.0, 31.0), (-114.9, 32.3),
+        (-117.4, 32.3), (-118.8, 33.8), (-121.3, 36.3), (-124.8, 40.0), (-124.9, 46.0), (-124.9, 48.6))),
+    ("Alaska", ((-180.0, 51.0), (-129.5, 51.0), (-129.5, 71.6), (-180.0, 71.6), (-180.0, 51.0))),
+    ("Hawaii", ((-160.6, 18.7), (-154.5, 18.7), (-154.5, 22.5), (-160.6, 22.5), (-160.6, 18.7))),
+    ("Puerto Rico and the US Virgin Islands", ((-68.0, 17.5), (-64.3, 17.5), (-64.3, 18.7), (-68.0, 18.7), (-68.0, 17.5))),
+)
 
 # Status strings. Documented: "Processing", "Completed", "Failed".
 # The official quickstart example also accepts lower-case variants plus
@@ -139,7 +171,8 @@ HTTP_MEANINGS = {
     422: "Invalid request or validation error.",
     401: "Missing or invalid API key.",
     403: "Insufficient plan access or authorization.",
-    404: "Activity not found or temporarily unavailable immediately after submission.",
+    404: "Activity not found. Right after submission this is usually temporary; for an older activity it "
+         "means the ID is unknown to this API environment or belongs to another account.",
     429: "Rate limit exceeded.",
     500: "Server-side processing error.",
 }

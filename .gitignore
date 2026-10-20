@@ -10,3 +10,6 @@ dist/gui_check_stdout.log
 dist/*.zip
 dist/*.log
 FortyGuard_QGIS_Integration_Research_Only.pdf
+
+# internal spreadsheets are never published
+*.xlsx

@@ -70,3 +70,13 @@ def _prefix_path():
         if os.path.isdir(candidate):
             return candidate
     return os.environ.get("QGIS_PREFIX_PATH", "/usr")
+
+
+def reset_plugin_settings():
+    """Remove every remembered plugin setting so dialog tests start like a fresh installation."""
+    from qgis.core import QgsSettings
+    s = QgsSettings()
+    s.beginGroup("fortyguard_heatmap")
+    s.remove("")
+    s.endGroup()
+    s.sync()

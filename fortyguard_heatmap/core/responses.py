@@ -13,6 +13,7 @@ import json
 import math
 
 from . import contract
+from .payload import recent_data_cutoff
 
 
 class ApiError(Exception):
@@ -36,24 +37,29 @@ class ApiError(Exception):
 
 # ----------------------------------------------------------------- helpers
 
-def decode_json(body_bytes):
-    """Decode a response body to JSON or raise ApiError(kind='malformed')."""
+def decode_json(body_bytes, retryable=False):
+    """Decode a response body to JSON or raise ApiError(kind='malformed').
+
+    ``retryable=True`` marks the error as worth another status check: a body that
+    was cut off mid-transfer must not end polling for a paid job.
+    """
     if body_bytes is None:
-        raise ApiError("Empty response body from the API.", kind="malformed")
+        raise ApiError("Empty response body from the API.", kind="malformed", retryable=retryable)
     if isinstance(body_bytes, (bytes, bytearray)):
         try:
             text = bytes(body_bytes).decode("utf-8")
         except UnicodeDecodeError:
-            raise ApiError("Response body is not UTF-8 text.", kind="malformed")
+            raise ApiError("Response body is not UTF-8 text.", kind="malformed", retryable=retryable)
     else:
         text = str(body_bytes)
     text = text.strip()
     if not text:
-        raise ApiError("Empty response body from the API.", kind="malformed")
+        raise ApiError("Empty response body from the API.", kind="malformed", retryable=retryable)
     try:
         return json.loads(text)
     except ValueError:
-        raise ApiError("Response body is not valid JSON: %s" % text[:200], kind="malformed")
+        raise ApiError("Response body is not valid JSON (possibly cut off): %s" % text[:200], kind="malformed",
+                       retryable=retryable)
 
 
 def _api_message(body):
@@ -107,9 +113,20 @@ def error_for_http_status(http_status, body=None, context="request"):
         return ApiError("Rate limit exceeded (HTTP 429). Waiting longer before the next check." + suffix,
                         kind="rate_limited", http_status=429, retryable=True)
     if http_status in (400, 422):
+        if any(marker in api_msg.lower() for marker in contract.NO_DATA_MESSAGE_MARKERS):
+            return ApiError(
+                "FortyGuard has no temperature data yet for part of the selected period (HTTP %d). Data for the "
+                "most recent days usually appears about %d days later, so choose dates ending on or before %s. "
+                "Nothing was charged: the API rejected the request before creating a job. API message: %s"
+                % (http_status, contract.DATA_LATENCY_DAYS, recent_data_cutoff().isoformat(), api_msg),
+                kind="no_data", http_status=http_status)
         return ApiError("The API rejected the input (HTTP %d). %s" % (http_status, documented) + suffix,
                         kind="invalid_input", http_status=http_status)
     if http_status is not None and http_status >= 500:
+        if context == "submit":
+            return ApiError("FortyGuard service error while submitting (HTTP %d). No job was created and nothing was "
+                            "charged; try again in a moment." % http_status + suffix,
+                            kind="server", http_status=http_status)
         return ApiError("FortyGuard service error (HTTP %d). %s" % (http_status, documented) + suffix,
                         kind="server", http_status=http_status, retryable=(context == "status"))
     return ApiError("Unexpected HTTP status %s from the API." % http_status + suffix,
@@ -176,7 +193,7 @@ def parse_status_response(http_status, body_bytes):
     """
     body = None
     try:
-        body = decode_json(body_bytes)
+        body = decode_json(body_bytes, retryable=True)  # a cut-off body is a transient problem, not a verdict
     except ApiError:
         if http_status is not None and http_status != 200:
             raise error_for_http_status(http_status, None, context="status")
@@ -230,8 +247,10 @@ def validate_map_data(map_data):
     if not isinstance(feats, list):
         raise ApiError("map_data.features is missing.", kind="malformed")
     if not feats:
-        raise ApiError("The API returned an empty heatmap (no tiles). Nothing was added to the project.",
-                       kind="malformed")
+        raise ApiError(
+            "The job completed but FortyGuard returned an empty heatmap (0 tiles). This happens when the area lies outside "
+            "the documented coverage (United States) or is smaller than one tile. Because the job completed, credits "
+            "were most likely charged. Nothing was added to the project.", kind="empty")
     bad = 0
     for f in feats:
         geom = f.get("geometry") if isinstance(f, dict) else None
@@ -407,7 +426,7 @@ class UsageInfo(object):
     """Normalised credits/plan report from POST /v1/system/fetch-api-key-usage."""
 
     __slots__ = ("plan_type", "cycle_type", "active", "key_status", "key_valid", "expiry_date",
-                 "remaining_credits", "total_credits", "used_credits", "raw")
+                 "remaining_credits", "cycle_remaining_credits", "total_credits", "used_credits", "raw")
 
     def __init__(self, **kw):
         for name in self.__slots__:
@@ -452,9 +471,12 @@ def parse_usage_response(http_status, body_bytes):
     plan = body.get("plan_details") if isinstance(body.get("plan_details"), dict) else {}
     key = body.get("api_key_details") if isinstance(body.get("api_key_details"), dict) else {}
     credits = body.get("credit_summary") if isinstance(body.get("credit_summary"), dict) else {}
-    remaining = credits.get("cycle_remaining_credits")
+    # total_remaining_credits is the live balance: it dropped by 4,220 per completed request in testing,
+    # while cycle_remaining_credits stayed frozen on a key whose billing cycle had ended (2026-10-19).
+    cycle_remaining = credits.get("cycle_remaining_credits")
+    remaining = credits.get("total_remaining_credits")
     if not _is_number(remaining):
-        remaining = credits.get("total_remaining_credits")
+        remaining = cycle_remaining
     total = credits.get("total_available_credits")
     used = credits.get("cycle_credits_used")
     if not plan and not key and not credits:
@@ -463,6 +485,7 @@ def parse_usage_response(http_status, body_bytes):
         plan_type=plan.get("plan_type"), cycle_type=plan.get("cycle_type"), active=plan.get("active"),
         key_status=key.get("status"), key_valid=key.get("valid"), expiry_date=key.get("expiry_date"),
         remaining_credits=remaining if _is_number(remaining) else None,
+        cycle_remaining_credits=cycle_remaining if _is_number(cycle_remaining) else None,
         total_credits=total if _is_number(total) else None,
         used_credits=used if _is_number(used) else None,
         raw=body,

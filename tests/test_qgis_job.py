@@ -40,6 +40,8 @@ class FakeApi(object):
                                       "data": {"activity_id": "act-1"}})
         self.status_script = []      # list of (http_status, body) consumed in order; last repeats
         self.usage_response = (500, {"error": True, "message": "Unable to fetch API key usage."})
+        self.submit_delay_s = 0.0        # sleep before answering a POST (to test Stop during submit)
+        self.truncate_status_once = False  # send a Content-Length longer than the body, then close
         self.lock = threading.Lock()
 
     def next_status(self):
@@ -69,12 +71,28 @@ def make_handler(api):
             if self.path.endswith("fetch-api-key-usage"):
                 code, resp = api.usage_response
             else:
+                if api.submit_delay_s:
+                    import time
+                    time.sleep(api.submit_delay_s)
                 code, resp = api.submit_response
             self._send(code, resp)
 
         def do_GET(self):
             api.requests.append(("GET", self.path, dict(self.headers), b""))
             code, resp = api.next_status()
+            with api.lock:
+                truncate = api.truncate_status_once
+                api.truncate_status_once = False
+            if truncate:
+                data = json.dumps(resp).encode("utf-8")
+                self.send_response(code)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data) + 40))
+                self.end_headers()
+                self.wfile.write(data[: len(data) // 2])
+                self.wfile.flush()
+                self.close_connection = True
+                return
             self._send(code, resp)
     return Handler
 
@@ -112,6 +130,8 @@ class LiveLoopTests(unittest.TestCase):
         self.api.requests.clear()
         self.api.submit_response = (200, {"error": False, "data": {"activity_id": "act-1"}})
         self.api.status_script = [(200, COMPLETED)]
+        self.api.submit_delay_s = 0.0
+        self.api.truncate_status_once = False
         self.events = []
         self._jobs = []
 
@@ -276,15 +296,74 @@ class LiveLoopTests(unittest.TestCase):
         self._drain()
         self.assertEqual(len([r for r in self.api.requests if r[0] == "POST"]), 1)
 
-    def test_empty_map_data_is_rejected(self):
+    def test_empty_map_data_is_reported_as_charged_empty_result(self):
         empty = json.loads(json.dumps(COMPLETED))
         empty["data"]["result"]["map_data"]["features"] = []
+        empty["data"]["result"]["stats_data"] = {"n_cells": 0}
         self.api.status_script = [(200, empty)]
         job, holder, _ = self._job()
         job.submit(self._payload())
         self.assertTrue(wait_for(holder))
         self.assertEqual(self.events[-1][0], "failed")
+        self.assertEqual(self.events[-1][2], "empty")
         self.assertIn("empty", self.events[-1][1].lower())
+        self.assertIn("charged", self.events[-1][1])
+        self.assertIn("act-1", self.events[-1][1])
+        self.assertEqual(job.last_stats, {"n_cells": 0})
+
+    def test_stop_during_submit_keeps_the_activity_id(self):
+        self.api.submit_delay_s = 0.6
+        self.api.status_script = [(200, {"error": False, "data": {"activity_id": "act-1", "status": "Processing"}})]
+        job, holder, _ = self._job()
+        job.submit(self._payload())
+        wait_for({"done": False}, 100)       # POST is in flight
+        job.stop()
+        self.assertTrue(job.is_active, "still waiting for the submission answer")
+        self.assertTrue(wait_for(holder))
+        kinds = [e[0] for e in self.events]
+        self.assertIn("submitted", kinds)
+        self.assertEqual(self.events[-1], ("stopped", "act-1"))
+        self.assertEqual(job.activity_id, "act-1", "the paid job's id is recorded")
+        self.assertTrue(job.can_resume)
+        self._drain()
+        self.assertEqual(len([r for r in self.api.requests if r[0] == "GET"]), 0, "no polling after stop")
+
+    def test_cut_off_status_body_is_retried(self):
+        self.api.truncate_status_once = True
+        self.api.status_script = [(200, COMPLETED)]
+        job, holder, _ = self._job()
+        job.submit(self._payload())
+        self.assertTrue(wait_for(holder))
+        self.assertEqual(self.events[-1][0], "completed", self.events)
+        self.assertIn("Retrying", [e[1] for e in self.events if e[0] == "status"])
+        self.assertGreaterEqual(len([r for r in self.api.requests if r[0] == "GET"]), 2)
+
+    def test_resume_of_unknown_activity_stops_after_a_few_404s(self):
+        self.api.status_script = [(404, {"error": True, "details": {"message": "No activity found for the provided activity_id."}})]
+        job, holder, _ = self._job()
+        self.assertTrue(job.resume("4f35f470-mcp-created"))
+        self.assertTrue(wait_for(holder))
+        self.assertEqual(self.events[-1][0], "failed")
+        self.assertEqual(self.events[-1][2], "not_found")
+        self.assertIn("not a freshly submitted job", self.events[-1][1])
+        self.assertEqual(len([r for r in self.api.requests if r[0] == "GET"]), job.max_not_found_on_resume)
+
+    def test_failed_status_without_reason_says_so(self):
+        self.api.status_script = [(200, {"error": False, "message": "Failed", "data": {"activity_id": "act-1", "status": "Failed"}})]
+        job, holder, _ = self._job()
+        job.submit(self._payload())
+        self.assertTrue(wait_for(holder))
+        self.assertNotIn("Message: Failed", self.events[-1][1])
+        self.assertIn("gave no reason", self.events[-1][1])
+
+    def test_repeated_504_mentions_large_areas(self):
+        self.api.status_script = [(504, b"upstream request timeout")]
+        job, holder, _ = self._job(max_consecutive_failures=3)
+        job.submit(self._payload())
+        self.assertTrue(wait_for(holder))
+        self.assertEqual(self.events[-1][0], "failed")
+        self.assertIn("504", self.events[-1][1])
+        self.assertIn("never finished", self.events[-1][1])
 
     def test_network_error_on_submit_warns_about_uncertain_outcome(self):
         client = HeatmapApiClient("K", base_url="http://127.0.0.1:1", timeout_ms=2000)  # nothing listens
@@ -305,7 +384,8 @@ class UsageEndpointTests(LiveLoopTests):
         self.api.usage_response = (200, {"plan_details": {"plan_type": "Premium", "cycle_type": "One-Time"},
                                          "api_key_details": {"status": "active", "valid": True},
                                          "credit_summary": {"total_available_credits": 1000000,
-                                                            "cycle_remaining_credits": 995780}})
+                                                            "cycle_remaining_credits": 1000000,
+                                                            "total_remaining_credits": 995780}})
         client = HeatmapApiClient("TEST-KEY-123", base_url=self.base_url, timeout_ms=5000)
         got = {}
         holder = {"done": False}

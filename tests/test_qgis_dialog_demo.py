@@ -68,6 +68,7 @@ def pump(holder, timeout_ms=20000):
 class DialogDemoTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="fg_dialog_")
+        qgis_env.reset_plugin_settings()
         QgsProject.instance().clear()
         self.iface = FakeIface()
 
@@ -91,8 +92,10 @@ class DialogDemoTests(unittest.TestCase):
         self.assertIsNone(plugin.action)
 
     def _run_demo(self, filter_index, measure_field=None):
+        from fortyguard_heatmap.ui.dialog import APPEARANCE_TILES
         dlg = HeatmapDialog(self.iface)
         dlg.output_dir.setFilePath(self.tmp)
+        dlg.appearance_combo.setCurrentIndex(dlg.appearance_combo.findData(APPEARANCE_TILES))  # one layer per result
         dlg.key_edit.setText("SECRET-KEY-must-never-appear-in-logs")
         dlg.demo_check.setChecked(True)
         self.assertFalse(dlg.key_edit.isEnabled())
@@ -127,6 +130,119 @@ class DialogDemoTests(unittest.TestCase):
         self.assertTrue(dlg.generate_btn.isEnabled())
         self.assertFalse(dlg.stop_btn.isEnabled())
         return dlg, result_layer
+
+    def test_getting_started_steps_on_separate_lines(self):
+        dlg = HeatmapDialog(self.iface)
+        intro = dlg.findChildren(type(dlg.selection_label))[0].text()
+        for step in ("1. ", "2. ", "3. ", "4. "):
+            self.assertIn(step, intro)
+        # every step except the first is preceded by a line break
+        self.assertIn("<br>2. ", intro); self.assertIn("<br>3. ", intro); self.assertIn("<br>4. ", intro)
+
+    def test_default_dates_avoid_the_data_latency(self):
+        from qgis.PyQt.QtCore import QDate
+        dlg = HeatmapDialog(self.iface)
+        expected = QDate.currentDate().addDays(-contract.DATA_LATENCY_DAYS)
+        self.assertEqual(dlg.start_date.date(), expected, "default date is not 'yesterday' (rejected by the API)")
+        self.assertEqual(dlg.end_date.date(), expected)
+        self.assertIn("not available yet", dlg.findChildren(type(dlg.selection_label))[0].text())
+        # switching to Range of days yields a valid 7-day window instead of start == end
+        dlg.filter_combo.setCurrentIndex(dlg.filter_combo.findData(contract.FILTER_RANGE_OF_DAYS))
+        self.assertEqual(dlg.start_date.date(), expected.addDays(-6))
+        self.assertEqual(dlg.end_date.date(), expected)
+        self.assertEqual(dlg.month_edit.date().day(), 1)
+
+    def test_analysis_settings_are_restored_after_restart(self):
+        dlg = HeatmapDialog(self.iface)
+        dlg.analysis_combo.setCurrentIndex(dlg.analysis_combo.findData("persistence"))
+        dlg.filter_combo.setCurrentIndex(dlg.filter_combo.findData(contract.FILTER_RANGE_OF_DAYS))
+        dlg.threshold_spin.setValue(33.0)
+        dlg.granularity_combo.setCurrentIndex(dlg.granularity_combo.findData(60))
+        dlg.start_time.setTime(dlg.start_time.time().addSecs(3600))
+        dlg.shutdown()
+        again = HeatmapDialog(self.iface)   # "restart"
+        self.assertEqual(again.analysis_combo.currentData(), "persistence")
+        self.assertEqual(again.filter_combo.currentData(), contract.FILTER_RANGE_OF_DAYS)
+        self.assertEqual(again.threshold_spin.value(), 33.0)
+        self.assertEqual(again.granularity_combo.currentData(), 60)
+        self.assertEqual(again.start_time.time().hour(), 15)
+        self.assertTrue(again.threshold_spin.isVisibleTo(again))
+        qgis_env.reset_plugin_settings()
+        fresh = HeatmapDialog(self.iface)
+        self.assertEqual(fresh.analysis_combo.currentData(), "tcm")
+
+    def test_demo_stop_does_not_mention_a_server_job(self):
+        dlg = HeatmapDialog(self.iface)
+        dlg.output_dir.setFilePath(self.tmp)
+        dlg.demo_check.setChecked(True)
+        dlg.demo_aoi_btn.click()
+        done = {"done": False}
+        dlg.generate_btn.click()
+        sub = {"done": False}
+        dlg.job.submitted.connect(lambda a: sub.__setitem__("done", True))
+        self.assertTrue(pump(sub))
+        dlg.job.stopped.connect(lambda a: done.__setitem__("done", True))
+        dlg.stop_btn.click()
+        self.assertTrue(pump(done))
+        pump({"done": False}, 100)
+        self.assertEqual(dlg.status_label.text(), "Demo stopped")
+        log = dlg.log.toPlainText()
+        self.assertIn("No request was sent", log)
+        self.assertNotIn("Check Again", log)
+        self.assertNotIn("server", log.split("Demo replay stopped")[-1])
+        self.assertFalse(dlg.resume_btn.isEnabled())
+        self.assertTrue(dlg.generate_btn.isEnabled())
+
+    def test_preflight_blocks_outside_coverage_and_huge_areas(self):
+        from fortyguard_heatmap.core.geometry import AoiInfo
+        dlg = HeatmapDialog(self.iface)
+        dlg.output_dir.setFilePath(self.tmp)
+        body = {"polygon_aoi": {}, "date_time": {"start_date": "2026-08-01", "filter_type": 3}, "granularity": 100,
+                "analytic_type": "tcm"}
+        paris = {"type": "Polygon", "coordinates": [[[2.32, 48.85], [2.36, 48.85], [2.36, 48.87], [2.32, 48.87], [2.32, 48.85]]]}
+        block, warnings = dlg._preflight(body, AoiInfo(paris, "EPSG:4326", 1, "paris", 6.53))
+        self.assertIsNotNone(block)
+        self.assertIn("outside the documented FortyGuard coverage", block)
+        self.assertIn("charged", block)
+        phoenix_big = {"type": "Polygon", "coordinates": [[[-112.5, 33.0], [-112.0, 33.0], [-112.0, 33.5], [-112.5, 33.5], [-112.5, 33.0]]]}
+        block, warnings = dlg._preflight(body, AoiInfo(phoenix_big, "EPSG:4326", 1, "big", 1300 / 0.386102))
+        self.assertIsNotNone(block)
+        self.assertIn("504", block)
+        tiny = {"type": "Polygon", "coordinates": [[[-74.006, 40.7128], [-74.005904, 40.7128], [-74.005904, 40.712872],
+                                                     [-74.006, 40.712872], [-74.006, 40.7128]]]}
+        block, warnings = dlg._preflight(body, AoiInfo(tiny, "EPSG:4326", 1, "tiny", 64e-6))
+        self.assertIsNone(block)
+        self.assertTrue(any("smaller than one" in w for w in warnings), warnings)
+        # recent dates are warned about, not blocked
+        from qgis.PyQt.QtCore import QDate
+        recent = dict(body, date_time={"start_date": QDate.currentDate().addDays(-1).toString("yyyy-MM-dd"), "filter_type": 3})
+        manhattan = {"type": "Polygon", "coordinates": [[[-74.017, 40.705], [-74.003, 40.705], [-74.003, 40.718], [-74.017, 40.718], [-74.017, 40.705]]]}
+        block, warnings = dlg._preflight(recent, AoiInfo(manhattan, "EPSG:4326", 1, "m", 1.7))
+        self.assertIsNone(block)
+        self.assertTrue(any("not available yet" in w for w in warnings), warnings)
+        # the developer switch bypasses everything
+        dlg.skip_checks_check.setChecked(True)
+        block, warnings = dlg._preflight(body, AoiInfo(paris, "EPSG:4326", 1, "paris", 6.53))
+        self.assertIsNone(block)
+        self.assertIn("skipped", warnings[0])
+
+    def test_identical_request_is_detected_from_the_output_folder(self):
+        from fortyguard_heatmap.core import output, preflight
+        dlg = HeatmapDialog(self.iface)
+        dlg.output_dir.setFilePath(self.tmp)
+        body = {"polygon_aoi": {"x": 1}, "date_time": {"start_date": "2026-07-15", "filter_type": 3}, "granularity": 100,
+                "analytic_type": "exceedance", "threshold": 30.0, "direction": "above"}
+        self.assertIsNone(dlg._previous_identical(body))
+        fp = preflight.request_fingerprint(body, dlg.base_url)
+        md = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"value": 1},
+                                                        "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}}]}
+        output.save_result(self.tmp, md, {}, "2026-07-15 | 100 m | above 30 °C", "9dfaa62a-first", analytic_type="exceedance",
+                           fingerprint=fp, environment=dlg.base_url)
+        text = dlg._previous_identical(body)
+        self.assertIsNotNone(text)
+        self.assertIn("9dfaa62a-first", text)
+        self.assertIn("charged again", text)
+        self.assertIsNone(dlg._previous_identical(dict(body, threshold=31.0)))
 
     def test_demo_single_hour(self):
         dlg, lyr = self._run_demo(0)
@@ -226,10 +342,13 @@ if __name__ == "__main__":
 class DialogAnalysisTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="fg_dialog_ana_")
+        qgis_env.reset_plugin_settings()
         QgsProject.instance().clear()
         self.iface = FakeIface()
         self.dlg = HeatmapDialog(self.iface)
         self.dlg.output_dir.setFilePath(self.tmp)
+        from fortyguard_heatmap.ui.dialog import APPEARANCE_TILES
+        self.dlg.appearance_combo.setCurrentIndex(self.dlg.appearance_combo.findData(APPEARANCE_TILES))
         self.dlg.demo_check.setChecked(True)
         self.dlg.demo_aoi_btn.click()
 
@@ -286,9 +405,14 @@ class DialogAnalysisTests(unittest.TestCase):
         self.dlg.filter_combo.setCurrentIndex(self.dlg.filter_combo.findData("month"))
         self.assertTrue(self.dlg.month_edit.isVisibleTo(self.dlg))
         self.assertFalse(self.dlg.start_date.isVisibleTo(self.dlg))
+        self.assertFalse(self.dlg.start_date_label.isVisibleTo(self.dlg), "no orphan 'Start date' label in month mode")
+        self.dlg.filter_combo.setCurrentIndex(self.dlg.filter_combo.findData(contract.FILTER_SINGLE_DAY))
+        self.assertTrue(self.dlg.start_date_label.isVisibleTo(self.dlg))
+        self.dlg.filter_combo.setCurrentIndex(self.dlg.filter_combo.findData("month"))
         self.dlg.month_edit.setDate(QDate(2024, 2, 10))
         self._select("exceedance")
-        body, aoi = self.dlg._collect_inputs()
+        body, aoi, notes = self.dlg._collect_inputs()
+        self.assertEqual(notes, [])
         self.assertEqual(body["date_time"], {"start_date": "2024-02-01", "filter_type": 4, "end_date": "2024-02-29"})
         self.assertEqual(body["analytic_type"], "exceedance")
         self.assertEqual(body["threshold"], 35.0)
@@ -341,6 +465,7 @@ class DialogAnalysisTests(unittest.TestCase):
 class DialogSmoothSurfaceTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="fg_dialog_surf_")
+        qgis_env.reset_plugin_settings()
         QgsProject.instance().clear()
         self.iface = FakeIface()
         self.dlg = HeatmapDialog(self.iface)

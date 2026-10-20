@@ -1,5 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Graduated temperature styling for heatmap tile layers."""
+"""Graduated temperature styling for heatmap tile layers and the smooth surface.
+
+Legend rules (from internal testing, 2026-10-19):
+* Label precision follows the data spread. FortyGuard temperature fields often
+  span a few tenths of a degree across a site, so one decimal made several
+  classes read identically ("21.9 - 21.9 °C").
+* Zero-width classes produced by the quantile method on data with few distinct
+  values are dropped; a uniform result gets exactly one class ("all tiles = 2.0 h").
+* QGIS matches a value to the first class whose [lower, upper] contains it,
+  with both ends inclusive. The fixed hour-of-day classes therefore end just
+  below the next bound so hour 4 lands in "04:00 - 07:59", not "00:00 - 03:59".
+* The smooth surface uses a minimum colour span so a 0.2 °C difference is not
+  stretched over the whole blue-to-red ramp.
+"""
 import contextlib
 
 from qgis.PyQt.QtCore import QVariant
@@ -20,6 +33,11 @@ from qgis.core import (
 
 from . import contract
 from .responses import ApiError
+
+HOUR_BOUNDS = (0, 4, 8, 12, 16, 20, 24)
+HOUR_EPSILON = 1e-6                     # class upper bound = next bound - epsilon (inclusive matching in QGIS)
+MIN_SURFACE_SPAN = {"celsius": 1.0, "hours": 1.0}   # smallest range the full colour ramp is stretched over
+UNITS = {"celsius": contract.TCM_UNIT, "hours": contract.HOURS_UNIT}
 
 
 def temperature_ramp():
@@ -48,16 +66,47 @@ def hour_of_day_ramp():
     return ramp
 
 
-def range_label(lower, upper, unit_kind):
-    if unit_kind == "celsius":
-        return "%.1f - %.1f %s" % (lower, upper, contract.TCM_UNIT)
-    if unit_kind == "hours":
-        return "%.1f - %.1f %s" % (lower, upper, contract.HOURS_UNIT)
+def _ramp_for(unit_kind):
+    return {"celsius": temperature_ramp, "hours": hours_ramp, "hour_of_day": hour_of_day_ramp}.get(unit_kind, temperature_ramp)()
+
+
+def decimals_for_span(span):
+    """Number of decimals so that neighbouring class labels stay distinct."""
+    span = abs(float(span))
+    if span >= 2.0:
+        return 1
+    if span >= 0.2:
+        return 2
+    return 3
+
+
+def format_value(value, unit_kind, decimals=1):
+    unit = UNITS.get(unit_kind, "")
+    text = "%.*f" % (decimals, value)
+    return (text + " " + unit) if unit else text
+
+
+def range_label(lower, upper, unit_kind, decimals=None):
+    """Legend label for one class. ``decimals`` defaults to a value derived from the class width."""
     if unit_kind == "hour_of_day":
-        lo = int(lower)
-        hi = int(upper) - 1 if upper > lower else int(upper)
-        return "%02d:00 - %02d:59 %s" % (lo, max(lo, hi), contract.PEAK_TIME_TZ)
-    return "%.2f - %.2f" % (lower, upper)
+        return hour_class_label(lower, upper)
+    if decimals is None:
+        decimals = decimals_for_span(upper - lower) if upper != lower else 1
+    unit = UNITS.get(unit_kind, "")
+    text = "%.*f - %.*f" % (decimals, lower, decimals, upper)
+    return (text + " " + unit) if unit else text
+
+
+def uniform_label(value, unit_kind, decimals=1):
+    return "all tiles = %s" % format_value(value, unit_kind, decimals)
+
+
+def hour_class_label(lower, upper):
+    """'04:00 - 07:59 UTC' for the class starting at hour 4."""
+    lo = int(round(lower))
+    nxt = int(round(upper + HOUR_EPSILON))     # upper is next_bound - epsilon
+    hi = max(lo, nxt - 1)
+    return "%02d:00 - %02d:59 %s" % (lo, min(hi, 23), contract.PEAK_TIME_TZ)
 
 
 def numeric_field_index(layer, field_name):
@@ -76,6 +125,16 @@ def apply_temperature_style(layer, field_name, classes=7, method="quantile"):
     return apply_analysis_style(layer, field_name, "celsius", classes=classes, method=method)
 
 
+def _distinct_ranges(ranges):
+    """Drop zero-width duplicates created by the quantile method; keep order."""
+    out = []
+    for rng in ranges:
+        if rng.lowerValue() == rng.upperValue() and out and out[-1].upperValue() >= rng.lowerValue():
+            continue  # the value is already covered by the previous class (inclusive upper bound)
+        out.append(rng)
+    return out
+
+
 def apply_analysis_style(layer, field_name, unit_kind, classes=7, method=None):
     """Apply a graduated renderer on ``field_name`` with legend labels in the right unit.
 
@@ -90,68 +149,95 @@ def apply_analysis_style(layer, field_name, unit_kind, classes=7, method=None):
     symbol.setOpacity(0.8)
     renderer = QgsGraduatedSymbolRenderer(field_name)
     renderer.setSourceSymbol(symbol)
-    ramp = {"celsius": temperature_ramp, "hours": hours_ramp, "hour_of_day": hour_of_day_ramp}.get(unit_kind, temperature_ramp)()
+    ramp = _ramp_for(unit_kind)
     renderer.setSourceColorRamp(ramp)
 
     if unit_kind == "hour_of_day":
-        bounds = [0, 4, 8, 12, 16, 20, 24]
-        n = len(bounds) - 1
+        n = len(HOUR_BOUNDS) - 1
         for i in range(n):
             sym = symbol.clone()
             sym.setColor(ramp.color(i / float(n - 1)))
-            renderer.addClassRange(QgsRendererRange(float(bounds[i]), float(bounds[i + 1]), sym,
-                                                    range_label(bounds[i], bounds[i + 1], unit_kind)))
+            lower = float(HOUR_BOUNDS[i])
+            upper = float(HOUR_BOUNDS[i + 1]) - (HOUR_EPSILON if i < n - 1 else 0.0)
+            renderer.addClassRange(QgsRendererRange(lower, upper, sym, hour_class_label(lower, upper)))
     else:
-        if method is None:
-            method = "quantile" if unit_kind == "celsius" else "equal"
-        renderer.setClassificationMethod(
-            QgsClassificationQuantile() if method == "quantile" else QgsClassificationEqualInterval())
-        renderer.updateClasses(layer, classes)
-        if len(renderer.ranges()) == 0:
-            vmin, vmax = layer.minimumValue(idx), layer.maximumValue(idx)
-            if vmin is None or vmax is None:
-                raise ApiError("Field '%s' has no numeric values to classify." % field_name, kind="malformed")
-            renderer.addClassRange(QgsRendererRange(float(vmin), float(vmax), symbol.clone(), "%s" % vmin))
-            renderer.updateColorRamp(ramp)
-        for i, rng in enumerate(renderer.ranges()):  # ranges() returns copies -> update by index
-            renderer.updateRangeLabel(i, range_label(rng.lowerValue(), rng.upperValue(), unit_kind))
+        vmin, vmax = layer.minimumValue(idx), layer.maximumValue(idx)
+        if vmin is None or vmax is None:
+            raise ApiError("Field '%s' has no numeric values to classify." % field_name, kind="malformed")
+        vmin, vmax = float(vmin), float(vmax)
+        if vmin == vmax:
+            # A uniform result (common for small areas): one class, one honest label.
+            sym = symbol.clone()
+            sym.setColor(ramp.color(0.5))
+            renderer.addClassRange(QgsRendererRange(vmin, vmax, sym, uniform_label(vmin, unit_kind)))
+        else:
+            if method is None:
+                method = "quantile" if unit_kind == "celsius" else "equal"
+            renderer.setClassificationMethod(
+                QgsClassificationQuantile() if method == "quantile" else QgsClassificationEqualInterval())
+            renderer.updateClasses(layer, classes)
+            kept = _distinct_ranges(renderer.ranges())
+            if len(kept) != len(renderer.ranges()):
+                renderer.deleteAllClasses()
+                for rng in kept:
+                    renderer.addClassRange(QgsRendererRange(rng.lowerValue(), rng.upperValue(), rng.symbol().clone(), ""))
+                renderer.updateColorRamp(ramp)
+            decimals = decimals_for_span(vmax - vmin)
+            for i, rng in enumerate(renderer.ranges()):  # ranges() returns copies -> update by index
+                renderer.updateRangeLabel(i, range_label(rng.lowerValue(), rng.upperValue(), unit_kind, decimals))
 
     layer.setRenderer(renderer)
     layer.triggerRepaint()
     return len(renderer.ranges())
 
 
+def surface_colour_span(unit_kind, vmin, vmax):
+    """(lo, hi, widened) colour-scale bounds: at least MIN_SURFACE_SPAN wide, centred on the data."""
+    vmin, vmax = float(vmin), float(vmax)
+    min_span = MIN_SURFACE_SPAN.get(unit_kind, 0.0)
+    span = vmax - vmin
+    if span >= min_span and span > 0:
+        return vmin, vmax, False
+    mid = (vmin + vmax) / 2.0
+    half = max(min_span, 1e-6) / 2.0
+    lo, hi = mid - half, mid + half
+    if unit_kind == "hours" and lo < 0:   # durations cannot be negative; keep zero at the bottom
+        lo, hi = 0.0, max(hi - lo, min_span)
+    return lo, hi, True
+
+
 def apply_surface_style(layer, unit_kind, vmin, vmax, opacity=0.75):
     """Continuous colour ramp for the smooth-surface raster (same ramps as the tiles).
 
-    Returns the number of legend entries. NODATA stays transparent; bilinear
-    resampling keeps the surface smooth when zooming in.
+    The ramp spans at least MIN_SURFACE_SPAN so tiny differences are not shown as
+    a strong hot/cold contrast. Returns the number of legend entries. NODATA stays
+    transparent; bilinear resampling keeps the surface smooth when zooming in.
     """
-    if vmax <= vmin:
-        vmax = vmin + 1e-6
-    ramp = {"celsius": temperature_ramp, "hours": hours_ramp, "hour_of_day": hour_of_day_ramp}.get(unit_kind, temperature_ramp)()
-    unit = {"celsius": contract.TCM_UNIT, "hours": contract.HOURS_UNIT}.get(unit_kind, "")
+    lo, hi, _widened = surface_colour_span(unit_kind, vmin, vmax)
+    ramp = _ramp_for(unit_kind)
+    unit = UNITS.get(unit_kind, "")
+    decimals = decimals_for_span(hi - lo)
     shader = QgsRasterShader()
-    ramp_shader = QgsColorRampShader(vmin, vmax, ramp, QgsColorRampShader.Interpolated, QgsColorRampShader.Continuous)
+    ramp_shader = QgsColorRampShader(lo, hi, ramp, QgsColorRampShader.Interpolated, QgsColorRampShader.Continuous)
     items = []
     steps = 6
     for i in range(steps + 1):
-        v = vmin + (vmax - vmin) * i / float(steps)
-        items.append(QgsColorRampShader.ColorRampItem(v, ramp.color(i / float(steps)), "%.1f %s" % (v, unit)))
+        v = lo + (hi - lo) * i / float(steps)
+        items.append(QgsColorRampShader.ColorRampItem(v, ramp.color(i / float(steps)), format_value(v, unit_kind, decimals)))
     ramp_shader.setColorRampItemList(items)
     ramp_shader.setClip(False)
-    with contextlib.suppress(Exception):  # tidy legend: one decimal and the unit next to the colour bar
+    with contextlib.suppress(Exception):  # tidy legend: matching decimals and the unit next to the colour bar
         from qgis.core import QgsBasicNumericFormat, QgsColorRampLegendNodeSettings
         legend = QgsColorRampLegendNodeSettings()
         fmt = QgsBasicNumericFormat()
-        fmt.setNumberDecimalPlaces(1)
+        fmt.setNumberDecimalPlaces(decimals)
         legend.setNumericFormat(fmt)
         legend.setSuffix(" " + unit if unit else "")
         ramp_shader.setLegendSettings(legend)
     shader.setRasterShaderFunction(ramp_shader)
     renderer = QgsSingleBandPseudoColorRenderer(layer.dataProvider(), 1, shader)
-    renderer.setClassificationMin(vmin)
-    renderer.setClassificationMax(vmax)
+    renderer.setClassificationMin(lo)
+    renderer.setClassificationMax(hi)
     renderer.setOpacity(opacity)
     layer.setRenderer(renderer)
     layer.resampleFilter().setZoomedInResampler(QgsBilinearRasterResampler())

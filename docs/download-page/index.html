@@ -1,5 +1,5 @@
 <title>FortyGuard Temperature Intelligence Layer for QGIS</title>
-<meta name="description" content="Download the FortyGuard Heatmap plugin for QGIS and generate temperature heatmaps with your own API key.">
+<meta name="description" content="Download the FortyGuard Temperature Intelligence Layer plugin for QGIS and generate temperature heatmaps with your own API key.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
 <style>
   /* Layout: one centred reading column; a two-column band for the install steps beside the screenshot. */
@@ -58,34 +58,33 @@
     <img src="icon.png" alt="FortyGuard mark">
     <div>
       <h1>Download FortyGuard for QGIS</h1>
-      <p class="lede">The FortyGuard Heatmap plugin adds FortyGuard temperature heatmaps to your own QGIS projects. Select an area, pick a date, and get a styled layer with tile temperatures in °C.</p>
+      <p class="lede">The FortyGuard Temperature Intelligence Layer plugin adds FortyGuard temperature heatmaps to your own QGIS projects. Select an area, pick a date, and get a styled layer with tile temperatures in °C.</p>
     </div>
   </header>
 
   <div class="cta">
-    <a class="button" href="https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/releases/download/v0.4.3/fortyguard_heatmap-0.4.3.zip">Download FortyGuard Temperature Intelligence Layer 0.4.3 (ZIP)</a>
-    <span class="meta">Version 0.4.3 · experimental · 80 KB · GPL-2.0-or-later · <a href="https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap">Source on GitHub</a></span>
+    <a class="button" href="https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/releases/download/v0.5.0/fortyguard_heatmap-0.5.0.zip">Download FortyGuard Temperature Intelligence Layer 0.5.0 (ZIP)</a>
+    <span class="meta">Version 0.5.0 · 90 KB · GPL-2.0-or-later · <a href="https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap">Source on GitHub</a></span>
   </div>
 
   <h2>Install in QGIS</h2>
-  <p class="note">FortyGuard Heatmap is listed in the <a href="https://plugins.qgis.org/plugins/fortyguard_heatmap/">official QGIS Plugin Repository</a> as an experimental plugin. The ZIP download above is the same package, for offline installs.</p>
+  <p class="note">FortyGuard Temperature Intelligence Layer is listed in the <a href="https://plugins.qgis.org/plugins/fortyguard_heatmap/">official QGIS Plugin Repository</a>. The ZIP download above is the same package, for offline installs.</p>
   <div class="band">
     <ol class="steps">
       <li>Open QGIS and choose <strong>Plugins ▸ Manage and Install Plugins…</strong></li>
-      <li>In <strong>Settings</strong>, tick <strong>Show also experimental plugins</strong> (needed while the plugin is marked experimental).</li>
       <li>In the <strong>All</strong> tab search for <strong>FortyGuard</strong>, select <strong>FortyGuard Temperature Intelligence Layer</strong> and click <strong>Install Plugin</strong>. (Offline alternative: <strong>Install from ZIP</strong> with the file above.)</li>
-      <li>In the <strong>Installed</strong> tab make sure <strong>FortyGuard Heatmap</strong> is ticked. A FortyGuard button appears in the toolbar.</li>
+      <li>In the <strong>Installed</strong> tab make sure <strong>FortyGuard Temperature Intelligence Layer</strong> is ticked. A FortyGuard button appears in the toolbar.</li>
       <li>Click the button, paste <strong>your own FortyGuard API key</strong>, and click <em>Check key and credits</em>.</li>
-      <li>Select exactly one polygon on the map, choose the date and resolution, then click <strong>Generate Heatmap</strong>.</li>
+      <li>Select exactly one polygon on the map (United States), choose a date at least a week ago and the resolution, then click <strong>Generate Heatmap</strong>.</li>
     </ol>
     <figure>
-      <img src="plugin-dialog.png" alt="The FortyGuard Heatmap dialog in QGIS after a completed request">
+      <img src="plugin-dialog.png" alt="The FortyGuard Temperature Intelligence Layer dialog in QGIS after a completed request">
       <figcaption>The plugin dialog after a completed request (QGIS 3.44, macOS).</figcaption>
     </figure>
   </div>
 
   <h2>Your API key</h2>
-  <p>The plugin works with your own FortyGuard API key. Get one on the <a href="https://www.fortyguard.com/api-pricing">FortyGuard API plans page</a>. The key is sent only to the FortyGuard API, is kept in memory while QGIS runs, and can optionally be saved in the encrypted QGIS authentication database. Every completed heatmap request consumes credits from your plan (documented: 3,500 credits on API Basic/Startup, 4,220 on API Premium; failed tasks are free). Coverage is documented as the United States.</p>
+  <p>The plugin works with your own FortyGuard API key. Get one on the <a href="https://www.fortyguard.com/api-pricing">FortyGuard API plans page</a>. The key is sent only to the FortyGuard API, is kept in memory while QGIS runs, and can optionally be saved in the encrypted QGIS authentication database. Every completed heatmap request consumes credits from your plan (documented: 3,500 credits on API Basic/Startup, 4,220 on API Premium; rejected and failed tasks are free, a completed job with no tiles is charged). Coverage is documented as the United States, and data for the most recent days (about one week) is usually not available yet. The plugin checks the area, the dates and duplicate requests before it submits anything that costs credits.</p>
 
   <h2>What you get</h2>
   <div class="band">
@@ -99,6 +98,7 @@
         <li>Four analyses, each one API request: Temperature/Snapshot (°C), Exceedance (hours above a threshold), Persistence (longest continuous run) and Peak temperature time (hour of day, UTC).</li>
         <li>Single hour, range of hours, single day, range of days and calendar month; 60, 80 or 100 m resolution.</li>
         <li>Mean, minimum or maximum tile temperature for daily outputs, area statistics from the API.</li>
+        <li>Pre-checks before every paid request: coverage, area size, recent dates, duplicates.</li>
         <li>Non-blocking status polling with Stop Waiting and Check Again.</li>
         <li>An optional Demo Mode with clearly labelled synthetic data for offline testing.</li>
       </ul>
@@ -108,11 +108,12 @@
   <h2>Tested versions</h2>
   <table>
     <tr><th>Platform</th><th>QGIS</th><th>Status</th></tr>
-    <tr><td>macOS 27 (Apple Silicon)</td><td>3.44.15 LTR (Qt 5.15, Python 3.12)</td><td>Tested, including a real API request</td></tr>
-    <tr><td>Windows, Linux</td><td>3.34 to 3.x</td><td>Not yet tested</td></tr>
+    <tr><td>macOS 26 / 27 (Apple Silicon)</td><td>3.44.15 LTR (Qt 5.15, Python 3.12)</td><td>Tested, including real API requests</td></tr>
+    <tr><td>Windows 11</td><td>3.44</td><td>Tested by the FortyGuard team (real API requests)</td></tr>
+    <tr><td>Ubuntu Linux</td><td>3.40.15</td><td>Tested by the FortyGuard team (real API requests)</td></tr>
     <tr><td>Any</td><td>QGIS 4 (Qt 6)</td><td>Not supported yet</td></tr>
   </table>
-  <p class="note">This is an experimental release. Please report problems with the QGIS version, operating system and the text from the plugin's log panel (never include your API key).</p>
+  <p class="note">Please report problems with the QGIS version, operating system and the text from the plugin's log panel (never include your API key).</p>
 
   <h2>Documentation and support</h2>
   <ul>
@@ -121,5 +122,5 @@
     <li>Support: <code>support@fortyguard.com</code> · <a href="https://www.fortyguard.com/contact-us">Contact FortyGuard</a></li>
   </ul>
 
-  <footer>FortyGuard Heatmap for QGIS is free software under the GNU GPL v2 or later. QGIS is a trademark of the QGIS project. Temperature values are provided by the FortyGuard Temperature API.</footer>
+  <footer>FortyGuard Temperature Intelligence Layer for QGIS is free software under the GNU GPL v2 or later. QGIS is a trademark of the QGIS project. Temperature values are provided by the FortyGuard Temperature API.</footer>
 </div>

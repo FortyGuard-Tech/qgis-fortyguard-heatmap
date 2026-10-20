@@ -56,6 +56,25 @@ class SubmitParsingTests(unittest.TestCase):
         self.assertTrue(cm.exception.retryable)
         self.assertIn("No activity found", str(cm.exception))
 
+    def test_no_data_400_is_explained_and_marked_free(self):
+        body = (b'{"error":true,"status_code":400,"details":{"message":"Temperature data is unavailable for one or '
+                b'more hours in the selected date/time range."}}')
+        with self.assertRaises(ApiError) as cm:
+            responses.parse_submit_response(400, body)
+        self.assertEqual(cm.exception.kind, "no_data")
+        text = str(cm.exception)
+        self.assertIn("no temperature data yet", text)
+        self.assertIn("Nothing was charged", text)
+        self.assertIn("days later", text)
+        self.assertIn("Temperature data is unavailable", text)
+
+    def test_submit_500_says_nothing_was_charged(self):
+        with self.assertRaises(ApiError) as cm:
+            responses.parse_submit_response(500, b'{"error": true, "message": "Internal server error occurred"}')
+        self.assertEqual(cm.exception.kind, "server")
+        self.assertFalse(cm.exception.retryable)
+        self.assertIn("nothing was charged", str(cm.exception))
+
     def test_http_error_without_json_body(self):
         with self.assertRaises(ApiError) as cm:
             responses.parse_submit_response(502, b"<html>Bad gateway</html>")
@@ -115,6 +134,16 @@ class StatusParsingTests(unittest.TestCase):
             responses.parse_status_response(500, b"")
         self.assertTrue(cm.exception.retryable)
 
+    def test_cut_off_body_on_status_is_retryable(self):
+        # HTTP 200 whose body was cut off mid-transfer must not end polling for a paid job
+        with self.assertRaises(ApiError) as cm:
+            responses.parse_status_response(200, b'{"error": false, "data": {"activity_id": "x", "sta')
+        self.assertEqual(cm.exception.kind, "malformed")
+        self.assertTrue(cm.exception.retryable)
+        with self.assertRaises(ApiError) as cm:
+            responses.parse_submit_response(200, b'{"err')
+        self.assertFalse(cm.exception.retryable, "a cut-off submit answer is not retried (no auto resubmit)")
+
     def test_missing_status(self):
         with self.assertRaises(ApiError) as cm:
             responses.parse_status_response(200, _b({"error": False, "data": {"activity_id": "x"}}))
@@ -155,10 +184,13 @@ class ResultTests(unittest.TestCase):
         all_missing = {"type": "FeatureCollection", "features": [t2, t3, t4]}
         self.assertEqual(responses.available_measures(all_missing), [])
 
-    def test_empty_output_rejected(self):
+    def test_empty_output_rejected_as_charged_empty_result(self):
         with self.assertRaises(ApiError) as cm:
             responses.validate_map_data({"type": "FeatureCollection", "features": []})
+        self.assertEqual(cm.exception.kind, "empty")
         self.assertIn("empty", str(cm.exception).lower())
+        self.assertIn("coverage", str(cm.exception).lower())
+        self.assertIn("charged", str(cm.exception).lower())
         with self.assertRaises(ApiError):
             responses.validate_map_data({"type": "Feature"})
         with self.assertRaises(ApiError):
@@ -194,6 +226,20 @@ USAGE_LIVE = {"api_key": None, "subscription_id": "sub_x",
 
 
 class UsageParsingTests(unittest.TestCase):
+    def test_frozen_cycle_balance_is_not_used(self):
+        # Observed 2026-10-19: cycle_remaining_credits stayed at 13,338,180 across 9 billed requests while
+        # total_remaining_credits dropped by 4,220 each time. The live balance is total_remaining_credits.
+        body = dict(USAGE_LIVE, credit_summary={"total_available_credits": 14157200, "cycle_credits_used": 819020,
+                                                "cycle_remaining_credits": 13338180, "total_remaining_credits": 9365500})
+        info = responses.parse_usage_response(200, _b(body))
+        self.assertEqual(info.remaining_credits, 9365500)
+        self.assertEqual(info.cycle_remaining_credits, 13338180)
+        self.assertIn("9,365,500", info.summary())
+        self.assertNotIn("13,338,180", info.summary())
+        # fall back to the cycle figure only when the total is missing
+        body["credit_summary"].pop("total_remaining_credits")
+        self.assertEqual(responses.parse_usage_response(200, _b(body)).remaining_credits, 13338180)
+
     def test_live_shape(self):
         info = responses.parse_usage_response(200, _b(USAGE_LIVE))
         self.assertEqual(info.plan_type, "Premium")

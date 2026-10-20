@@ -107,7 +107,7 @@ in S5 contain only the `result` part (`map_data` + `stats_data`).
 | 400 / 422 | Invalid request or validation error | stop, show API message |
 | 401 | Missing or invalid API key | stop, keep activity id |
 | 403 | Insufficient plan access or authorization | stop (may also indicate credit problems) |
-| 404 | Activity not found or temporarily unavailable immediately after submission | retry with backoff (status only) |
+| 404 | Activity not found; temporary right after submission, otherwise an unknown ID for this environment/account | retry with backoff after a submission; when resuming an old ID, stop after 3 checks |
 | 429 | Rate limit exceeded | retry after the maximum interval |
 | 500 | Server-side processing error | retry (status only), bounded |
 
@@ -162,6 +162,24 @@ keys case-insensitively.
   README/notebook. The plugin uses °C and performs no conversion. The cached
   real responses (San Jose, July) show values of 16–37 which are consistent with
   °C.
+
+## Observed behaviour (internal testing, production, 2026-10-19)
+
+Findings from the FortyGuard team's testing round (sheet "FortyGuard QGIS
+Plugin Internal Testing", 9 testers, macOS / Windows / Ubuntu). They are
+observations, not documentation, and drive the plugin's defaults and pre-checks.
+
+| Topic | Observation | Plugin response (0.5.0) |
+|-------|-------------|-------------------------|
+| Data latency | On 2026-10-19 the days 10-15 … 10-18 were rejected with HTTP 400 `Temperature data is unavailable for one or more hours in the selected date/time range`; 10-14 completed. The documented "through 12 hours past the current time" is not met for recent days. Rejections were free. | `contract.DATA_LATENCY_DAYS = 7`: default date = today − 7, warning for later windows, Calendar month clipped to the cutoff, HTTP 400 with that message classified as `no_data` with a plain-language explanation. |
+| Range of days | `window_utc.end_inclusive: true`; 2026-07-01 → 2026-08-01 (32 inclusive days) was accepted, ran ~7 min and ended `Failed` with no reason (free). | Local rule: `(end − start).days + 1 ≤ 31`. |
+| Credits per request | Every completed request cost exactly 4,220 credits on the tested Premium and Hackathon keys, for any area (5 to 400 mi²) and any resolution. | `CREDITS_PER_REQUEST_OBSERVED = 4220`; the confirmation states the documented cost for known plans and the observed cost otherwise. |
+| Empty results | Paris, London, open ocean, a 64 m² polygon and a 10 m polygon all returned `Completed` with `n_cells 0` and were charged 4,220 each (46,420 credits over 11 jobs in one session). | Coverage outline check (block when fully outside), tile-size warning, `empty` error kind that says credits were likely charged, `*_EMPTY.meta.json` record. |
+| Area caps | Not enforced for the tested keys: 400 mi² completed (103,099 tiles); ~1,300 mi² and ~11,500 mi² were accepted, charged, and `/v1/status` answered HTTP 504 `upstream request timeout` on every check. | Warn above the plan allowance, block above 500 mi²; the give-up message after repeated 5xx mentions this pattern. |
+| Usage endpoint fields | `credit_summary.cycle_remaining_credits` stayed frozen (13,338,180) across 9 billed requests on a key whose cycle ended 2026-07-19, while `total_remaining_credits` dropped 4,220 per request. The same key reported `plan_details.active = false` and `api_access_available = false` although it worked. | `remaining_credits` = `total_remaining_credits` (fallback: cycle). Confirmation with the API team which field is authoritative is still open. |
+| Duplicate requests | The API has no idempotency; an identical request re-run after completion created a new activity, was charged again and returned tile-for-tile identical results. | Request fingerprint (SHA-256 of body + host) stored in the sidecar; warning when the same fingerprint was completed in this session or exists in the output folder. |
+| Transient 500 on submit | 1 of 17 submissions returned HTTP 500 `Internal server error occurred`; no job, no charge; the same request succeeded on retry. | Submit 500 message says no job was created and nothing was charged. |
+| Direct API comparison | Plugin payloads, tile IDs, geometries, values, statistics and saved GeoJSON were identical to hand-written requests for all four analyses (Phoenix, 102 tiles each). | No change. |
 
 ## Plans, credits, limits, coverage (documented 2026-10-12)
 

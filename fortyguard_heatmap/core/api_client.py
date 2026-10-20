@@ -87,7 +87,7 @@ class HeatmapApiClient(QObject):
         request = QNetworkRequest(url)
         request.setRawHeader(contract.AUTH_HEADER.encode("ascii"), self._api_key.encode("utf-8"))
         request.setRawHeader(b"Accept", contract.CONTENT_TYPE_JSON.encode("ascii"))
-        request.setRawHeader(b"User-Agent", b"FortyGuard-Heatmap-QGIS-Plugin/0.1")
+        request.setRawHeader(b"User-Agent", b"FortyGuard-Temperature-Intelligence-Layer-QGIS/0.5")
         if _ATTR_FOLLOW is not None:
             request.setAttribute(_ATTR_FOLLOW, False)  # never forward the key to another host
         # QGIS's network manager has a disk cache; API responses must never come from it.
@@ -115,8 +115,13 @@ class HeatmapApiClient(QObject):
         body = bytes(reply.readAll())
         net_error = reply.error()
 
-        if net_error != QNetworkReply.NoError and http_status is None:
-            # Pure transport failure (DNS, TLS, timeout, offline...). No HTTP status to interpret.
+        # Qt network-layer errors are numbered below 200 (connection refused, remote host closed,
+        # timeout...), ProtocolFailure is 399; content/server errors (401, 404, 500...) carry an HTTP
+        # status and are interpreted from the body. A connection that drops mid-body still has an
+        # HTTP status, so the check must not depend on http_status being None.
+        transport_failure = (net_error != QNetworkReply.NoError
+                             and (int(net_error) < 200 or net_error == QNetworkReply.ProtocolFailure))
+        if transport_failure or (net_error != QNetworkReply.NoError and http_status is None):
             if net_error in (QNetworkReply.TimeoutError, QNetworkReply.OperationCanceledError):
                 return None, ApiError("The request timed out before FortyGuard answered.", kind="timeout",
                                       retryable=(context == "status"))

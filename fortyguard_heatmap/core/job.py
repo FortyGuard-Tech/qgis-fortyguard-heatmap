@@ -13,6 +13,12 @@ Rules implemented here:
 * A POST is never automatically repeated. If the POST outcome is uncertain the
   user is told so and must decide.
 * activity_id is kept after any status failure so polling can be resumed.
+* Stop Waiting while the POST is in flight does not abort the POST: the answer
+  is awaited so the activity_id (a paid job) is recorded, then polling stops.
+* An empty "Completed" result is reported as kind "empty" (credits were most
+  likely charged) and its stats are kept in ``last_stats``.
+* When resuming an older activity, HTTP 404 is retried only a few times: it is
+  not "just submitted" any more.
 """
 import contextlib
 import time
@@ -42,8 +48,12 @@ class HeatmapJob(QObject):
         self._timer.timeout.connect(self._check_status)
         self._active = False
         self._awaiting_submit = False
+        self._stop_after_submit = False
+        self._resumed = False
         self._last_tick = None
         self._generation = 0
+        self.last_stats = None
+        self.max_not_found_on_resume = 3
 
     # --------------------------------------------------------------- state
 
@@ -64,15 +74,18 @@ class HeatmapJob(QObject):
         self.policy.reset()
         self.activity_id = None
         self.last_error = None
+        self.last_stats = None
         self._active = True
         self._awaiting_submit = True
+        self._stop_after_submit = False
+        self._resumed = False
         self._generation += 1
         gen = self._generation
         self.progress.emit("Submitting heatmap request...")
 
         def _cb(activity_id, error):
             if gen != self._generation:
-                return  # stopped/unloaded meanwhile
+                return  # unloaded meanwhile
             self._awaiting_submit = False
             if error is not None:
                 self._active = False
@@ -87,6 +100,13 @@ class HeatmapJob(QObject):
                 return
             self.activity_id = activity_id
             self.submitted.emit(activity_id)
+            if self._stop_after_submit:
+                # The user clicked Stop while the POST was in flight: the job exists (and is paid),
+                # so keep its id and stop polling instead of pretending nothing was sent.
+                self._stop_after_submit = False
+                self._active = False
+                self.stopped.emit(activity_id)
+                return
             self.status_changed.emit("Submitted", "Waiting for the first status check")
             self._schedule(self.policy.first_delay())
 
@@ -104,15 +124,25 @@ class HeatmapJob(QObject):
         self.policy.reset()
         self.last_error = None
         self._active = True
+        self._resumed = True
         self._generation += 1
         self.progress.emit("Checking activity %s..." % activity_id)
         self._schedule(0.0)
         return True
 
     def stop(self):
-        """Stop waiting locally. Does not cancel anything on the server."""
+        """Stop waiting locally. Does not cancel anything on the server.
+
+        While the submission POST is still in flight the reply is NOT aborted:
+        the server may already have created (and charged) the job, so the
+        activity_id must be recorded. ``stopped`` is emitted once it arrives.
+        """
         was_active = self._active
         self._timer.stop()
+        if was_active and self._awaiting_submit:
+            self._stop_after_submit = True
+            self.progress.emit("Stop requested; waiting for the submission answer so the activity ID is not lost...")
+            return
         self._generation += 1  # invalidates callbacks of in-flight replies
         self._active = False
         self._awaiting_submit = False
@@ -120,6 +150,16 @@ class HeatmapJob(QObject):
             self.client.abort_all()
         if was_active:
             self.stopped.emit(self.activity_id or "")
+
+    def abandon(self):
+        """Hard stop used on unload: abort everything, emit nothing."""
+        self._timer.stop()
+        self._generation += 1
+        self._active = False
+        self._awaiting_submit = False
+        self._stop_after_submit = False
+        with contextlib.suppress(Exception):
+            self.client.abort_all()
 
     # ------------------------------------------------------------ internal
 
@@ -149,7 +189,17 @@ class HeatmapJob(QObject):
         self.last_error = error
         if error.retryable:
             decision = self.policy.on_retryable_error(error.kind)
-            self.status_changed.emit("Retrying", error.user_message())
+            if (error.kind == "not_found" and self._resumed
+                    and self.policy.consecutive_failures >= self.max_not_found_on_resume
+                    and decision.action == Decision.CONTINUE):
+                decision = self.policy.on_fatal_error(error.kind)
+                error = ApiError(
+                    "Activity %s was not found after %d checks (HTTP 404). It is not a freshly submitted job, so "
+                    "the ID is unknown to this API environment, belongs to another account, or was mistyped."
+                    % (self.activity_id, self.policy.consecutive_failures), kind="not_found", http_status=404)
+                self.last_error = error
+            else:
+                self.status_changed.emit("Retrying", error.user_message())
         else:
             decision = self.policy.on_fatal_error(error.kind)
         self._apply(decision, error)
@@ -159,11 +209,15 @@ class HeatmapJob(QObject):
             self.status_changed.emit(status_result.raw_status, "Result received")
             try:
                 map_data, stats_data = extract_result(status_result)
+                self.last_stats = stats_data
                 validate_map_data(map_data)
             except ApiError as exc:
                 self._active = False
                 self.last_error = exc
-                self.failed.emit(exc.user_message(), exc.kind)
+                msg = exc.user_message()
+                if exc.kind == "empty":
+                    msg += " Activity %s." % self.activity_id
+                self.failed.emit(msg, exc.kind)
                 return
             self._active = False
             self.completed.emit(map_data, stats_data)
@@ -171,8 +225,11 @@ class HeatmapJob(QObject):
         if status_result.is_failure:
             self._active = False
             msg = "FortyGuard reported the heatmap job as %s." % status_result.raw_status
-            if status_result.message:
-                msg += " Message: %s" % status_result.message
+            detail = (status_result.message or "").strip()
+            if detail and detail.lower() != status_result.status:
+                msg += " Message: %s" % detail
+            else:
+                msg += " The API gave no reason."
             msg += " (Failed tasks do not consume credits, per the documentation.)"
             self.last_error = ApiError(msg, kind="failed")
             self.failed.emit(msg, "failed")
@@ -194,6 +251,10 @@ class HeatmapJob(QObject):
                    "use 'Check Again' later for activity %s." % (self.policy.consecutive_failures,
                                                                 error.user_message() if error else "unknown",
                                                                 self.activity_id))
+            if error is not None and error.http_status in (502, 503, 504):
+                msg += (" In internal testing, repeated HTTP %d answers happened with very large areas (hundreds of "
+                        "square miles): those jobs never finished although credits were charged. If 'Check Again' "
+                        "keeps failing, contact support with the activity ID." % error.http_status)
             kind = error.kind if error else "unknown"
         else:
             msg = error.user_message() if error else "Stopped."

@@ -13,7 +13,7 @@ PURE_ONLY=0
 [[ "${1:-}" == "--pure" ]] && PURE_ONLY=1
 
 echo "== Pure-Python tests (system python3) =="
-python3 -m unittest tests.test_payload tests.test_responses tests.test_polling tests.test_surface
+python3 -m unittest tests.test_payload tests.test_responses tests.test_polling tests.test_surface tests.test_preflight
 
 if [[ $PURE_ONLY -eq 1 ]]; then exit 0; fi
 
@@ -31,5 +31,5 @@ fi
 echo
 echo "== QGIS-runtime tests ($QGIS_PYTHON) =="
 "$QGIS_PYTHON" -m unittest tests.test_payload tests.test_responses tests.test_polling tests.test_surface \
-  tests.test_qgis_geometry tests.test_qgis_output_styling tests.test_qgis_credentials \
+  tests.test_preflight tests.test_qgis_geometry tests.test_qgis_output_styling tests.test_qgis_credentials \
   tests.test_qgis_job tests.test_qgis_dialog_demo

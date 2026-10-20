@@ -177,8 +177,12 @@ def build_surface(map_data, field, aoi_polygon=None, pixels_per_tile=PIXELS_PER_
     return out, gt, stats
 
 
-def write_geotiff(path, array, geotransform):
-    """Write a float32 GeoTIFF (EPSG:4326, NODATA) with GDAL."""
+def write_geotiff(path, array, geotransform, description=None):
+    """Write a float32 GeoTIFF (EPSG:4326, NODATA) with GDAL.
+
+    ``description`` becomes the band description, which QGIS shows as the legend
+    heading instead of "Band 1 (Gray)".
+    """
     from osgeo import gdal, osr
     drv = gdal.GetDriverByName("GTiff")
     rows, cols = array.shape
@@ -188,10 +192,23 @@ def write_geotiff(path, array, geotransform):
     ds.SetProjection(srs.ExportToWkt())
     band = ds.GetRasterBand(1)
     band.SetNoDataValue(NODATA)
+    if description:
+        band.SetDescription(str(description))
+        band.SetMetadataItem("DESCRIPTION", str(description))
     band.WriteArray(array)
     band.FlushCache()
     ds = None
     return path
+
+
+def band_description(analytic_type, measure):
+    """Legend heading for the surface band, e.g. 'FortyGuard mean temperature (°C)'."""
+    kind = contract.UNIT_KIND.get(analytic_type, "celsius")
+    if kind == "celsius":
+        return "FortyGuard %s temperature (%s)" % (contract.MEASURE_LABELS.get(measure, measure), contract.TCM_UNIT)
+    if kind == "hours":
+        return "FortyGuard %s (hours)" % contract.ANALYSIS_LABELS.get(analytic_type, analytic_type)
+    return "FortyGuard %s" % contract.ANALYSIS_LABELS.get(analytic_type, analytic_type)
 
 
 def surface_path_for(geojson_path):

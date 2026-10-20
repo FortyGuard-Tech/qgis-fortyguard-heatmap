@@ -49,6 +49,29 @@ def latest_allowed_date(now=None):
     return (now + _dt.timedelta(hours=contract.FORECAST_HOURS_AHEAD)).date()
 
 
+def recent_data_cutoff(now=None, latency_days=None):
+    """Latest date that is normally available: today minus the observed data latency.
+
+    The API documents data "through 12 hours past the current time", but internal
+    testing (2026-10-19) showed the most recent days are rejected with HTTP 400
+    "Temperature data is unavailable...". This is a client-side hint only.
+    """
+    now = now or _dt.datetime.now()
+    days = contract.DATA_LATENCY_DAYS if latency_days is None else int(latency_days)
+    return (now - _dt.timedelta(days=days)).date()
+
+
+def recent_data_warning(start_date, end_date=None, now=None):
+    """Return a warning string when the window ends after the recent-data cutoff, else None."""
+    cutoff = recent_data_cutoff(now)
+    last = parse_date(end_date) if end_date else parse_date(start_date)
+    if last <= cutoff:
+        return None
+    return ("The selected period ends on %s. FortyGuard data for the most recent days (about the last %d) is "
+            "usually not available yet; the API then rejects the request with 'Temperature data is unavailable' "
+            "(no charge). Dates up to %s normally work." % (last.isoformat(), contract.DATA_LATENCY_DAYS, cutoff.isoformat()))
+
+
 def check_date_bounds(day, now=None):
     min_day = _dt.date.fromisoformat(contract.MIN_DATE_ISO)
     if day < min_day:
@@ -154,21 +177,26 @@ def build_date_time(filter_type, start_date, start_time=None, end_time=None, end
         check_date_bounds(end_day, now)
         if end_day <= start_day:
             raise ValidationError("End date must be after the start date.")
-        if (end_day - start_day).days > contract.MAX_RANGE_OF_DAYS:
+        n_days = (end_day - start_day).days + 1  # both dates are included (API window_utc: end_inclusive)
+        if n_days > contract.MAX_RANGE_OF_DAYS:
             raise ValidationError(
-                "Range of days may not exceed %d days." % contract.MAX_RANGE_OF_DAYS)
+                "Range of days may not exceed %d days including both the start and the end date "
+                "(%s to %s is %d days). For a whole month use the Calendar month option."
+                % (contract.MAX_RANGE_OF_DAYS, start_day.isoformat(), end_day.isoformat(), n_days))
         date_time["end_date"] = end_day.isoformat()
 
     return date_time
 
 
-def month_range(year, month, now=None):
-    """Return (first_date, last_date) ISO strings for a calendar month, clipped to the API limits.
+def month_range(year, month, now=None, latency_days=None):
+    """Return (first_date, last_date) ISO strings for a calendar month, clipped to what is available.
 
     * Leap years come from the calendar module.
-    * A month that has not started yet (beyond now + 12 h) is rejected.
-    * An incomplete month is clipped to the latest allowed date.
     * Months before 2019-01 are rejected.
+    * The current (or a future) month is clipped to the recent-data cutoff (today minus
+      ``latency_days``, default contract.DATA_LATENCY_DAYS) because the API has no data for
+      the most recent days yet; a month with fewer than two available days is rejected with
+      an explanation instead of a request that the API would reject.
     """
     try:
         year, month = int(year), int(month)
@@ -179,18 +207,30 @@ def month_range(year, month, now=None):
     min_day = _dt.date.fromisoformat(contract.MIN_DATE_ISO)
     if last < min_day:
         raise ValidationError("Months before %s are not supported by the FortyGuard API." % contract.MIN_DATE_ISO[:7])
-    latest = latest_allowed_date(now)
-    if first > latest:
-        raise ValidationError("%s has not started yet; the API accepts dates up to %d hours ahead (latest: %s)."
-                              % (first.strftime("%B %Y"), contract.FORECAST_HOURS_AHEAD, latest.isoformat()))
+    cutoff = recent_data_cutoff(now, latency_days)
+    if first > cutoff:
+        raise ValidationError(
+            "%s has no available data yet. FortyGuard data appears about %d days after each day; "
+            "the latest date that normally works is %s."
+            % (first.strftime("%B %Y"), contract.DATA_LATENCY_DAYS, cutoff.isoformat()))
     if first < min_day:
         first = min_day
-    if last > latest:
-        last = latest
+    if last > cutoff:
+        last = cutoff
     if last <= first:
-        raise ValidationError("Only one day of %s is available so far; use the Single day filter for %s."
-                              % (first.strftime("%B %Y"), first.isoformat()))
+        raise ValidationError(
+            "Only one day of %s (%s) is normally available so far; use the Single day filter for it, "
+            "or wait until more days of the month are available."
+            % (first.strftime("%B %Y"), first.isoformat()))
     return first.isoformat(), last.isoformat()
+
+
+def month_was_clipped(year, month, first_iso, last_iso):
+    """True when month_range returned less than the whole calendar month."""
+    year, month = int(year), int(month)
+    full_first = _dt.date(year, month, 1).isoformat()
+    full_last = _dt.date(year, month, calendar.monthrange(year, month)[1]).isoformat()
+    return (first_iso, last_iso) != (full_first, full_last)
 
 
 def validate_analysis(analytic_type, filter_type, threshold=None, direction=None):

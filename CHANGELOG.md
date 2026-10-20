@@ -1,5 +1,93 @@
 # Changelog – FortyGuard Temperature Intelligence Layer (QGIS plugin)
 
+## 0.5.0 – 2026-10-20
+
+Fixes for every issue reported in the FortyGuard internal testing round of
+2026-10-19 (sheet "FortyGuard QGIS Plugin Internal Testing"; testers on macOS,
+Windows 11 / QGIS 3.44 and Ubuntu / QGIS 3.40.15). Now that the plugin has run
+on all three platforms it is **no longer marked experimental**.
+
+Dates and data availability
+- Default date is **today minus 7 days** (was yesterday). The API has no data for
+  the most recent days yet; every first run with the old default failed with
+  HTTP 400 "Temperature data is unavailable for one or more hours".
+- That HTTP 400 is now explained in plain words: no data yet for part of the
+  period, dates up to `today - 7` normally work, nothing was charged (kind `no_data`).
+- Confirmation dialog warns when the selected window ends within the last 7 days.
+- **Calendar month** clips the current month to the available days and explains
+  it, instead of sending a request the API rejects.
+- **Range of days** counts both dates: 2026-07-01 to 2026-08-01 (32 inclusive
+  days) is rejected locally with a hint to use Calendar month, instead of
+  running 7 minutes on the server and failing without a reason.
+- Switching to Range of days gives a valid 7-day default window.
+
+Credits
+- "Check key and credits" reads `total_remaining_credits` (the live balance)
+  instead of `cycle_remaining_credits`, which stayed frozen at 13,338,180 across
+  nine billed requests on a key whose billing cycle had ended. The low-credit
+  warning uses the same live figure.
+- The confirmation dialog states the expected cost for **your** plan when the
+  key was checked (documented plans), or says that the plan has no documented
+  cost and that every completed request in testing cost 4,220 credits
+  (Hackathon keys), plus the remaining balance.
+
+Pre-checks before a paid request (all bypassable in Developer settings)
+- **Coverage:** an area outside the documented United States coverage is blocked
+  before submission (Paris, London and open-ocean requests completed with 0
+  tiles and were charged 4,220 each); partial overlap is warned about. The
+  selected-feature line shows the coverage status.
+- **Area:** smaller than one tile → warning (a 64 m² polygon completed with 0
+  tiles and was charged); above the plan allowance (or above 50 mi² when the
+  plan is unknown) → warning; above 500 mi² → blocked (a ~1,300 mi² request
+  was accepted, charged, and the status endpoint answered HTTP 504 forever).
+- **Duplicates:** an identical request already completed in this session or
+  found in the output folder (`request_fingerprint` in the sidecar) is warned
+  about; a previous request that was stopped or timed out is pointed out so
+  "Check Again" can fetch it instead of paying twice.
+
+Results and messages
+- A completed job with no tiles is reported as kind `empty`: it says credits
+  were most likely charged, names the activity, and a `*_EMPTY.meta.json`
+  record is saved so the user keeps a trace of what they paid for.
+- Repeated HTTP 502/503/504 status answers mention the large-area pattern seen
+  in testing; HTTP 500 on submit says no job was created and nothing was charged.
+- "Message: Failed" is no longer repeated when the API gives no reason.
+
+Legends
+- Label precision follows the data spread (2 decimals under 2 °C, 3 under
+  0.2): no more three classes labelled "21.9 - 21.9 °C".
+- Zero-width quantile classes are dropped; a uniform result gets exactly one
+  class labelled "all tiles = 2.0 h".
+- Peak temperature time classes end just below the next bound, so hour 4 is in
+  "04:00 - 07:59" and hour 8 in "08:00 - 11:59" (QGIS matches both bounds
+  inclusively).
+- Smooth surface: the GeoTIFF band is named with the quantity and unit (legend
+  heading "FortyGuard mean temperature (°C)" instead of "Band 1 (Gray)"), the
+  colour scale spans at least 1 °C / 1 h so a 0.2 °C spread is not stretched to
+  a blue-to-red contrast, and the spread is shown in the statistics and log.
+
+Robustness
+- **Stop Waiting during submission** no longer discards the answer: the
+  activity ID of the (paid) job is recorded, then polling stops.
+- A status answer cut off mid-body, or a transport error with a partial body,
+  is retried instead of ending polling for a paid job.
+- When resuming an old activity, HTTP 404 stops after 3 checks with a message
+  that does not claim the job was "just submitted".
+- NaN/Infinity values are written as `null` (valid JSON); request summaries are
+  shortened in file names; the sidecar and surface names are checked before
+  writing so nothing is overwritten.
+
+Dialog
+- Getting-started steps on separate lines; no orphan "Start date" label in
+  Calendar month mode; Demo Mode "Stop" explains that nothing was sent instead
+  of mentioning a server job and a disabled "Check Again".
+- Analysis type, time option, threshold, resolution and times are remembered
+  between sessions (dates stay relative to today).
+- Form rows wrap at narrow widths; plan/credits, selected feature and status
+  texts wrap instead of being cropped; "Check key and credits" has its own row.
+
+Tests: 95 pure-Python (new `tests/test_preflight.py`) and 90 QGIS-runtime tests.
+
 ## 0.4.3 – 2026-10-19 (experimental)
 
 - Re-upload through the plugins.qgis.org main upload form so the listing title

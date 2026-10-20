@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""FortyGuard Heatmap dialog (built in code; no generated ui_*.py files).
+"""FortyGuard Temperature Intelligence Layer dialog (built in code; no generated ui_*.py files).
 
 The dialog owns no network logic. It collects input, calls the core modules,
 drives a HeatmapJob and reflects its signals. Everything runs on the main thread.
@@ -23,7 +23,7 @@ from qgis.core import (
 )
 from qgis.gui import QgsCollapsibleGroupBox, QgsFileWidget, QgsMapLayerComboBox
 
-from ..core import contract, credentials, demo, geometry, output, payload, responses, styling, surface
+from ..core import contract, credentials, demo, geometry, output, payload, preflight, responses, styling, surface
 from ..core.api_client import HeatmapApiClient
 from ..core.demo import DemoApiClient
 from ..core.job import HeatmapJob
@@ -34,6 +34,13 @@ LOG_TAG = "FortyGuard Temperature Intelligence Layer"
 SETTING_MEASURE = "fortyguard_heatmap/preferred_measure"
 SETTING_DEADLINE = "fortyguard_heatmap/deadline_minutes"
 SETTING_APPEARANCE = "fortyguard_heatmap/appearance"
+# Analysis settings restored on the next start (dates are deliberately not saved: they are relative to today).
+SETTING_ANALYSIS = "fortyguard_heatmap/analysis_type"
+SETTING_FILTER = "fortyguard_heatmap/filter_type"
+SETTING_THRESHOLD = "fortyguard_heatmap/threshold_c"
+SETTING_GRANULARITY = "fortyguard_heatmap/granularity_m"
+SETTING_START_TIME = "fortyguard_heatmap/start_time"
+SETTING_END_TIME = "fortyguard_heatmap/end_time"
 APPEARANCE_TILES = "tiles"
 APPEARANCE_SMOOTH = "smooth"
 FILTER_MONTH = "month"  # UI-only choice; submitted as filter_type 4 with the month's first/last dates
@@ -47,18 +54,19 @@ MEASURE_CHOICES = (
 GETTING_STARTED = (
     "<b>Getting started</b><br>"
     "1. Paste your own FortyGuard API key below (available at "
-    "<a href='" + contract.URL_API_PLANS + "'>fortyguard.com/api-pricing</a>). "
-    "2. Click <i>Check key and credits</i>. "
-    "3. Pick exactly one polygon on the map. "
+    "<a href='" + contract.URL_API_PLANS + "'>fortyguard.com/api-pricing</a>).<br>"
+    "2. Click <i>Check key and credits</i>.<br>"
+    "3. Pick exactly one polygon on the map (United States coverage).<br>"
     "4. Choose the analysis, date/time and resolution, then <i>Generate Heatmap</i>.<br>"
-    "Each completed request consumes credits of your plan. Coverage: United States. "
+    "Each completed request consumes credits of your plan. Data for the most recent days (about the last %d) "
+    "is usually not available yet.<br>"
     "Docs: <a href='" + contract.URL_DOCS + "'>API introduction</a> · "
     "<a href='" + contract.URL_DOCS_HEATMAP + "'>Create Heatmap</a> · "
     "<a href='" + contract.URL_DOCS_AUTH + "'>Authentication</a> · "
     "<a href='" + contract.URL_DOCS_LIMITS + "'>Limits</a> · "
     "<a href='" + contract.URL_DOCS_CREDITS + "'>Credits usage</a> · "
     "<a href='" + contract.URL_CONTACT + "'>Contact FortyGuard</a>"
-)
+) % contract.DATA_LATENCY_DAYS
 
 
 def saved_output_dir():
@@ -69,18 +77,52 @@ def saved_output_dir():
     return output.default_output_dir()
 
 
+def default_dates(today=None):
+    """(start, end) QDate defaults: the latest day that normally has data, and a 7-day range before it."""
+    today = today or QDate.currentDate()
+    end = today.addDays(-contract.DATA_LATENCY_DAYS)
+    return end.addDays(-6), end
+
+
+def _form(parent):
+    """QFormLayout that wraps long rows instead of clipping them at narrow widths."""
+    f = QFormLayout(parent)
+    f.setRowWrapPolicy(QFormLayout.WrapLongRows)
+    f.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+    return f
+
+
+def _wrapping_label(text=""):
+    """Label that takes the available width and wraps instead of forcing the dialog wider."""
+    label = QLabel(text)
+    label.setWordWrap(True)
+    label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    label.setMinimumWidth(1)
+    return label
+
+
+def _shrinkable(combo, chars=18):
+    """Let a combo box shrink below the width of its longest item (the popup still shows full text)."""
+    combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+    combo.setMinimumContentsLength(chars)
+    combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    return combo
+
+
 class HeatmapDialog(QDialog):
     def __init__(self, iface, parent=None):
         super().__init__(parent or (iface.mainWindow() if iface else None))
         self.iface = iface
         self.setWindowTitle("FortyGuard Temperature Intelligence Layer")
-        self.setMinimumSize(560, 480)
+        self.setMinimumSize(520, 480)
         self.resize(680, 720)  # fits a 13-inch laptop screen; the settings part scrolls
         self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint)
 
         self.job = None
         self.client = None
         self.usage_client = None
+        self.last_usage = None
         self.last_layer = None
         self.last_map_data = None
         self.last_stats = None
@@ -91,10 +133,14 @@ class HeatmapDialog(QDialog):
         self.last_threshold = None
         self.last_aoi_polygon = None
         self.last_surface_layer = None
+        self.last_fingerprint = None
+        self._completed_requests = {}      # fingerprint -> (activity_id, path, when) for this session
+        self._unfinished_activity = None    # activity id whose outcome is unknown (stopped / timed out)
         self._connected_layer = None
 
         self._build_ui()
         self._wire()
+        self._restore_settings()
         self._on_analysis_changed()
         self._on_filter_changed()
         self._on_demo_toggled(self.demo_check.isChecked())
@@ -112,7 +158,7 @@ class HeatmapDialog(QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # content fits the width; long rows wrap
         scroll.setWidget(content)
         outer.addWidget(scroll, 1)
 
@@ -126,25 +172,31 @@ class HeatmapDialog(QDialog):
 
         # --- API key
         conn = QGroupBox("Your FortyGuard API key")
-        f = QFormLayout(conn)
+        f = _form(conn)
         key_row = QHBoxLayout()
         self.key_edit = QLineEdit()
         self.key_edit.setEchoMode(QLineEdit.Password)
-        self.key_edit.setPlaceholderText("Paste your API key (kept in memory only unless you save it)")
+        self.key_edit.setPlaceholderText("Paste your API key (kept in memory only)")
+        self.key_edit.setMinimumWidth(120)
         self.show_key_check = QCheckBox("Show")
-        self.check_key_btn = QPushButton("Check key and credits")
         key_row.addWidget(self.key_edit, 1)
         key_row.addWidget(self.show_key_check)
-        key_row.addWidget(self.check_key_btn)
         f.addRow("API key", key_row)
-        self.usage_label = QLabel("Not checked yet.")
-        self.usage_label.setWordWrap(True)
+        check_row = QHBoxLayout()
+        self.check_key_btn = QPushButton("Check key and credits")
+        check_row.addWidget(self.check_key_btn)
+        check_row.addStretch(1)
+        f.addRow("", check_row)
+        self.usage_label = _wrapping_label("Not checked yet.")
         f.addRow("Plan / credits", self.usage_label)
 
         store_row = QHBoxLayout()
-        self.load_key_btn = QPushButton("Load saved key")
+        self.load_key_btn = QPushButton("Load key")
+        self.load_key_btn.setToolTip("Restore the key saved in the encrypted QGIS authentication store.")
         self.save_key_btn = QPushButton("Save key (encrypted)")
-        self.forget_key_btn = QPushButton("Forget saved key")
+        self.save_key_btn.setToolTip("Store the key in the encrypted QGIS authentication store (master password).")
+        self.forget_key_btn = QPushButton("Forget key")
+        self.forget_key_btn.setToolTip("Remove the saved key from the QGIS authentication store.")
         for b in (self.load_key_btn, self.save_key_btn, self.forget_key_btn):
             store_row.addWidget(b)
         store_row.addStretch(1)
@@ -155,29 +207,30 @@ class HeatmapDialog(QDialog):
         store_hint.setStyleSheet("color: #555; font-size: 11px;")
         f.addRow("", store_hint)
 
-        self.demo_check = QCheckBox("Demo Mode - offline, SYNTHETIC data, no API call, no credits (optional)")
+        self.demo_check = QCheckBox("Demo Mode (offline SYNTHETIC data, no API call)")
+        self.demo_check.setToolTip("Optional. Replays bundled synthetic data so you can try the plugin without a key.")
         self.demo_check.setStyleSheet("font-weight: bold;")
         f.addRow("", self.demo_check)
         root.addWidget(conn)
 
         # --- Area
         area = QGroupBox("Area of interest")
-        f = QFormLayout(area)
-        self.layer_combo = QgsMapLayerComboBox()
+        f = _form(area)
+        self.layer_combo = _shrinkable(QgsMapLayerComboBox())
         self.layer_combo.setFilters(QgsMapLayerProxyModel.PolygonLayer)
         self.layer_combo.setAllowEmptyLayer(True)
         f.addRow("Polygon layer", self.layer_combo)
-        self.selection_label = QLabel("-")
-        self.selection_label.setWordWrap(True)
+        self.selection_label = _wrapping_label("-")
         f.addRow("Selected feature", self.selection_label)
-        self.demo_aoi_btn = QPushButton("Add demo AOI layer (EPSG:3857, synthetic test area, USA)")
+        self.demo_aoi_btn = QPushButton("Add demo AOI layer (synthetic test area, USA)")
+        self.demo_aoi_btn.setToolTip("Adds a small synthetic polygon in EPSG:3857 over lower Manhattan and selects it.")
         f.addRow("", self.demo_aoi_btn)
         root.addWidget(area)
 
         # --- Analysis
         ana = QGroupBox("Analysis")
-        f = QFormLayout(ana)
-        self.analysis_combo = QComboBox()
+        f = _form(ana)
+        self.analysis_combo = _shrinkable(QComboBox())
         for at in contract.ANALYTIC_TYPES:
             self.analysis_combo.addItem(contract.ANALYSIS_LABELS[at], at)
         f.addRow("Analysis type", self.analysis_combo)
@@ -203,8 +256,8 @@ class HeatmapDialog(QDialog):
 
         # --- Date/time
         when = QGroupBox("Date and time")
-        f = QFormLayout(when)
-        self.filter_combo = QComboBox()
+        f = _form(when)
+        self.filter_combo = _shrinkable(QComboBox())
         for ft in (contract.FILTER_SINGLE_HOUR, contract.FILTER_RANGE_OF_HOURS,
                    contract.FILTER_SINGLE_DAY, contract.FILTER_RANGE_OF_DAYS):
             self.filter_combo.addItem(contract.FILTER_TYPE_LABELS[ft], ft)
@@ -212,22 +265,27 @@ class HeatmapDialog(QDialog):
         self.filter_combo.setCurrentIndex(2)  # single day: the schema verified live
         f.addRow("Filter type", self.filter_combo)
 
+        min_date = QDate.fromString(contract.MIN_DATE_ISO, "yyyy-MM-dd")
+        max_date = QDate.currentDate().addDays(1)   # documented limit (now + 12 h); the API is the authority
+        default_start, default_end = default_dates()
+
         self.month_edit = QDateEdit()
         self.month_edit.setCalendarPopup(True)
         self.month_edit.setDisplayFormat("MMMM yyyy")
-        self.month_edit.setMinimumDate(QDate.fromString(contract.MIN_DATE_ISO, "yyyy-MM-dd"))
-        self.month_edit.setMaximumDate(QDate.currentDate().addDays(1))
-        self.month_edit.setDate(QDate(QDate.currentDate().year(), QDate.currentDate().month(), 1).addMonths(-1))
+        self.month_edit.setMinimumDate(min_date)
+        self.month_edit.setMaximumDate(max_date)
+        self.month_edit.setDate(QDate(default_end.year(), default_end.month(), 1).addMonths(-1))
         self.month_label = QLabel("Month")
         f.addRow(self.month_label, self.month_edit)
 
         self.start_date = QDateEdit()
         self.start_date.setCalendarPopup(True)
         self.start_date.setDisplayFormat("yyyy-MM-dd")
-        self.start_date.setMinimumDate(QDate.fromString(contract.MIN_DATE_ISO, "yyyy-MM-dd"))
-        self.start_date.setMaximumDate(QDate.currentDate().addDays(1))
-        self.start_date.setDate(QDate.currentDate().addDays(-1))
-        f.addRow("Start date", self.start_date)
+        self.start_date.setMinimumDate(min_date)
+        self.start_date.setMaximumDate(max_date)
+        self.start_date.setDate(default_end)
+        self.start_date_label = QLabel("Start date")
+        f.addRow(self.start_date_label, self.start_date)
 
         self.start_time = QTimeEdit()
         self.start_time.setDisplayFormat("HH:mm")
@@ -244,14 +302,16 @@ class HeatmapDialog(QDialog):
         self.end_date = QDateEdit()
         self.end_date.setCalendarPopup(True)
         self.end_date.setDisplayFormat("yyyy-MM-dd")
-        self.end_date.setMinimumDate(QDate.fromString(contract.MIN_DATE_ISO, "yyyy-MM-dd"))
-        self.end_date.setMaximumDate(QDate.currentDate().addDays(1))
-        self.end_date.setDate(QDate.currentDate().addDays(-1))
+        self.end_date.setMinimumDate(min_date)
+        self.end_date.setMaximumDate(max_date)
+        self.end_date.setDate(default_end)
         self.end_date_label = QLabel("End date")
         f.addRow(self.end_date_label, self.end_date)
 
         tz = QLabel("Start/end times are the local time of the selected area (confirmed by FortyGuard). "
-                    "Peak temperature time results are reported in UTC.")
+                    "Peak temperature time results are reported in UTC. Dates default to %d days ago: FortyGuard data "
+                    "for the most recent days is usually not available yet (the API then answers 'Temperature data is "
+                    "unavailable', free of charge)." % contract.DATA_LATENCY_DAYS)
         tz.setWordWrap(True)
         tz.setStyleSheet("color: #555; font-size: 11px;")
         f.addRow("", tz)
@@ -259,14 +319,14 @@ class HeatmapDialog(QDialog):
 
         # --- Output options
         opts = QGroupBox("Output")
-        f = QFormLayout(opts)
-        self.granularity_combo = QComboBox()
+        f = _form(opts)
+        self.granularity_combo = _shrinkable(QComboBox(), 8)
         for g in contract.GRANULARITY_OPTIONS:
             self.granularity_combo.addItem("%d m" % g, g)
         self.granularity_combo.setCurrentIndex(self.granularity_combo.findData(contract.DEFAULT_GRANULARITY))
         f.addRow("Resolution", self.granularity_combo)
 
-        self.measure_combo = QComboBox()
+        self.measure_combo = _shrinkable(QComboBox())
         for field, label in MEASURE_CHOICES:
             self.measure_combo.addItem(label, field)
         saved = QgsSettings().value(SETTING_MEASURE, contract.FIELD_AVERAGE)
@@ -278,7 +338,7 @@ class HeatmapDialog(QDialog):
         measure_row.addWidget(self.restyle_btn)
         f.addRow("Measure (daily outputs)", measure_row)
 
-        self.appearance_combo = QComboBox()
+        self.appearance_combo = _shrinkable(QComboBox())
         self.appearance_combo.addItem("Smooth surface (interpolated raster, like the dashboard) + tiles layer hidden", APPEARANCE_SMOOTH)
         self.appearance_combo.addItem("Tiles only (exact API values per tile)", APPEARANCE_TILES)
         saved_app = QgsSettings().value(SETTING_APPEARANCE, APPEARANCE_SMOOTH)
@@ -308,14 +368,18 @@ class HeatmapDialog(QDialog):
         # --- Developer settings (collapsed; not persisted)
         self.dev_group = QgsCollapsibleGroupBox("Developer settings (advanced - leave collapsed for normal use)")
         self.dev_group.setCollapsed(True)
-        f = QFormLayout(self.dev_group)
-        self.base_url_combo = QComboBox()
+        f = _form(self.dev_group)
+        self.base_url_combo = _shrinkable(QComboBox())
         for label, url in contract.BASE_URL_CHOICES:
             self.base_url_combo.addItem(label, url)
         self.base_url_combo.setCurrentIndex(0)  # always start on production
         self.base_url_combo.setToolTip("Keys are environment-specific. Switching clears the key field; the choice "
                                        "is not remembered between sessions.")
         f.addRow("API environment", self.base_url_combo)
+        self.skip_checks_check = QCheckBox("Skip the coverage, area and duplicate pre-checks")
+        self.skip_checks_check.setToolTip("The pre-checks exist because the API charges for empty and never-finishing "
+                                          "jobs. Only skip them if you know the request is valid.")
+        f.addRow("", self.skip_checks_check)
         dev_hint = QLabel("Production (api.fortyguard.com) is the default for all users. The development environment "
                           "is for FortyGuard developers with a development key only.")
         dev_hint.setWordWrap(True)
@@ -347,15 +411,16 @@ class HeatmapDialog(QDialog):
         v.addWidget(self.progress)
 
         grid = QFormLayout()
-        self.status_label = QLabel("Idle")
+        grid.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        grid.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        self.status_label = _wrapping_label("Idle")
         self.status_label.setStyleSheet("font-weight: bold;")
         grid.addRow("Status", self.status_label)
         self.activity_label = QLineEdit()
         self.activity_label.setReadOnly(True)
         self.activity_label.setPlaceholderText("(none yet)")
         grid.addRow("Activity ID", self.activity_label)
-        self.stats_label = QLabel("-")
-        self.stats_label.setWordWrap(True)
+        self.stats_label = _wrapping_label("-")
         grid.addRow("Area statistics", self.stats_label)
         v.addLayout(grid)
 
@@ -370,9 +435,10 @@ class HeatmapDialog(QDialog):
 
         notice = QLabel(
             "Using this plugin requires a FortyGuard API key with an appropriate plan. A completed request consumes "
-            "credits (documented: 3,500 per request on API Basic/Startup, 4,220 on API Premium; failed tasks are free). "
-            "Documented coverage: United States only. Area caps: 10 mi² (Basic/Startup) or 50 mi² (Premium). "
-            "tcm values are in °C. Support: %s" % contract.SUPPORT_EMAIL)
+            "credits (documented: 3,500 per request on API Basic/Startup, 4,220 on API Premium; rejected and failed "
+            "tasks are free, but a completed job with 0 tiles is charged). Documented coverage: United States only. "
+            "Area caps: 10 mi² (Basic/Startup) or 50 mi² (Premium). tcm values are in °C. Support: %s"
+            % contract.SUPPORT_EMAIL)
         notice.setWordWrap(True)
         notice.setStyleSheet("color: #555; font-size: 11px;")
         outer.addWidget(notice, 0)
@@ -401,7 +467,41 @@ class HeatmapDialog(QDialog):
             lambda _i: QgsSettings().setValue(SETTING_APPEARANCE, self.appearance_combo.currentData()))
         self.output_dir.fileChanged.connect(lambda p: QgsSettings().setValue(output.OUTPUT_DIR_SETTING, p))
         self.base_url_combo.currentIndexChanged.connect(self._on_environment_changed)
+        # analysis settings remembered for the next session
+        self.analysis_combo.currentIndexChanged.connect(
+            lambda _i: QgsSettings().setValue(SETTING_ANALYSIS, self.analysis_combo.currentData()))
+        self.filter_combo.currentIndexChanged.connect(
+            lambda _i: QgsSettings().setValue(SETTING_FILTER, str(self.filter_combo.currentData())))
+        self.threshold_spin.valueChanged.connect(lambda v: QgsSettings().setValue(SETTING_THRESHOLD, v))
+        self.granularity_combo.currentIndexChanged.connect(
+            lambda _i: QgsSettings().setValue(SETTING_GRANULARITY, self.granularity_combo.currentData()))
+        self.start_time.timeChanged.connect(lambda t: QgsSettings().setValue(SETTING_START_TIME, t.toString("HH:mm")))
+        self.end_time.timeChanged.connect(lambda t: QgsSettings().setValue(SETTING_END_TIME, t.toString("HH:mm")))
         self._on_layer_changed(self.layer_combo.currentLayer())
+
+    def _restore_settings(self):
+        """Restore the analysis settings of the previous session (dates stay relative to today)."""
+        s = QgsSettings()
+        at = s.value(SETTING_ANALYSIS, "")
+        if self.analysis_combo.findData(at) >= 0:
+            self.analysis_combo.setCurrentIndex(self.analysis_combo.findData(at))
+        ft = s.value(SETTING_FILTER, "")
+        for i in range(self.filter_combo.count()):
+            if str(self.filter_combo.itemData(i)) == str(ft):
+                self.filter_combo.setCurrentIndex(i)
+                break
+        with contextlib.suppress(TypeError, ValueError):
+            thr = float(s.value(SETTING_THRESHOLD, contract.DEFAULT_THRESHOLD_C))
+            if contract.THRESHOLD_MIN_C <= thr <= contract.THRESHOLD_MAX_C:
+                self.threshold_spin.setValue(thr)
+        with contextlib.suppress(TypeError, ValueError):
+            g = int(s.value(SETTING_GRANULARITY, contract.DEFAULT_GRANULARITY))
+            if self.granularity_combo.findData(g) >= 0:
+                self.granularity_combo.setCurrentIndex(self.granularity_combo.findData(g))
+        for key, widget in ((SETTING_START_TIME, self.start_time), (SETTING_END_TIME, self.end_time)):
+            t = QTime.fromString(str(s.value(key, "")), "HH:mm")
+            if t.isValid():
+                widget.setTime(t)
 
     # ----------------------------------------------------------- helpers
 
@@ -424,7 +524,8 @@ class HeatmapDialog(QDialog):
                   self.start_time, self.end_time, self.end_date, self.granularity_combo, self.output_dir,
                   self.output_default_btn, self.deadline_spin, self.load_key_btn, self.save_key_btn,
                   self.forget_key_btn, self.demo_aoi_btn, self.base_url_combo, self.check_key_btn,
-                  self.analysis_combo, self.threshold_spin, self.month_edit, self.appearance_combo):
+                  self.analysis_combo, self.threshold_spin, self.month_edit, self.appearance_combo,
+                  self.skip_checks_check):
             w.setEnabled(not busy)
         if not busy:
             self._on_demo_toggled(self.demo_check.isChecked())
@@ -447,6 +548,7 @@ class HeatmapDialog(QDialog):
         else:
             self.log_line("API environment: %s" % self.base_url)
         self.usage_label.setText("Not checked yet.")
+        self.last_usage = None
 
     @property
     def analytic_type(self):
@@ -487,7 +589,10 @@ class HeatmapDialog(QDialog):
         self.end_time.setVisible(show_end_time); self.end_time_label.setVisible(show_end_time)
         self.end_date.setVisible(show_end_date); self.end_date_label.setVisible(show_end_date)
         self.month_edit.setVisible(show_month); self.month_label.setVisible(show_month)
-        self.start_date.setVisible(not show_month)
+        self.start_date.setVisible(not show_month); self.start_date_label.setVisible(not show_month)
+        if show_end_date and self.end_date.date() <= self.start_date.date():
+            # a sensible default window (7 days) instead of an invalid start = end pair
+            self.start_date.setDate(self.end_date.date().addDays(-6))
         aggregate = ft in (contract.FILTER_SINGLE_DAY, contract.FILTER_RANGE_OF_DAYS, FILTER_MONTH)
         self.measure_combo.setToolTip("Used when the result contains average/min/max fields (daily outputs)."
                                       if aggregate else "Hourly outputs carry a single 'temperature' field; "
@@ -512,9 +617,16 @@ class HeatmapDialog(QDialog):
         except ValidationError as exc:
             self.selection_label.setText("<span style='color:#a33'>%s</span>" % exc)
             return
+        status, regions = preflight.coverage_status(info.geometry_geojson)
+        if status == preflight.COVERAGE_INSIDE:
+            cov = "inside documented coverage (%s)" % regions[0]
+        elif status == preflight.COVERAGE_PARTIAL:
+            cov = "<span style='color:#a33'>partly outside documented coverage (United States)</span>"
+        else:
+            cov = "<span style='color:#a33'>outside documented coverage (United States): the API would return 0 tiles and charge</span>"
         self.selection_label.setText(
-            "Feature %s of '%s' | source CRS %s | ~%.2f km² (%.2f mi²) | sent as EPSG:4326 Polygon"
-            % (info.feature_id, info.layer_name, info.source_crs_authid, info.area_sq_km, info.area_sq_mi))
+            "Feature %s of '%s' | source CRS %s | ~%.2f km² (%.2f mi²) | sent as EPSG:4326 Polygon | %s"
+            % (info.feature_id, info.layer_name, info.source_crs_authid, info.area_sq_km, info.area_sq_mi, cov))
 
     # ------------------------------------------------------- credentials
 
@@ -559,11 +671,13 @@ class HeatmapDialog(QDialog):
         def _cb(info, error):
             self.check_key_btn.setEnabled(not self.demo_check.isChecked())
             if error is not None:
+                self.last_usage = None
                 self.usage_label.setText("<span style='color:#a33'>%s</span>" % error.user_message())
                 self.log_line("Key/credits check failed [%s]: %s" % (error.kind, error.user_message()), Qgis.Warning)
                 return
+            self.last_usage = info
             text = info.summary()
-            if info.remaining_credits is not None and info.remaining_credits < contract.CREDITS_PER_REQUEST["API Premium"]:
+            if info.remaining_credits is not None and info.remaining_credits < contract.CREDITS_PER_REQUEST_OBSERVED:
                 text += " - WARNING: fewer credits than one heatmap request may need."
             self.usage_label.setText(text)
             self.log_line("Key OK. " + text)
@@ -596,14 +710,19 @@ class HeatmapDialog(QDialog):
     # -------------------------------------------------------------- run
 
     def _collect_inputs(self):
-        """Validate UI input and return (payload, aoi_info). Raises ValidationError."""
+        """Validate UI input and return (payload, aoi_info, notes). Raises ValidationError."""
         layer = self.layer_combo.currentLayer()
         aoi = geometry.prepare_aoi(layer)
         ft = self.filter_combo.currentData()
         start_date = self.start_date.date().toString("yyyy-MM-dd")
         end_date = self.end_date.date().toString("yyyy-MM-dd")
+        notes = []
         if ft == FILTER_MONTH:
-            start_date, end_date = payload.month_range(self.month_edit.date().year(), self.month_edit.date().month())
+            y, m = self.month_edit.date().year(), self.month_edit.date().month()
+            start_date, end_date = payload.month_range(y, m)
+            if payload.month_was_clipped(y, m, start_date, end_date):
+                notes.append("%s is not complete yet: the request covers %s to %s (data for more recent days is not "
+                             "available yet)." % (self.month_edit.date().toString("MMMM yyyy"), start_date, end_date))
             ft = contract.FILTER_RANGE_OF_DAYS
         at = self.analytic_type
         body = payload.build_payload(
@@ -617,29 +736,72 @@ class HeatmapDialog(QDialog):
             direction=contract.DIRECTION_ABOVE if at in contract.THRESHOLD_TYPES else None,
         )
         output.ensure_dir(self.output_dir.filePath())
-        return body, aoi
+        return body, aoi, notes
+
+    def _preflight(self, body, aoi):
+        """Client-side checks before a paid request. Returns (block_reason or None, [warnings])."""
+        warnings = []
+        if self.skip_checks_check.isChecked():
+            return None, ["Pre-checks skipped (Developer settings)."]
+        status, regions = preflight.coverage_status(aoi.geometry_geojson)
+        if status == preflight.COVERAGE_OUTSIDE:
+            return ("The area lies outside the documented FortyGuard coverage (United States). In testing such requests "
+                    "completed with 0 tiles and were still charged. Choose an area in the United States (or tick "
+                    "'Skip the pre-checks' in Developer settings if coverage has been extended)."), warnings
+        if status == preflight.COVERAGE_PARTIAL:
+            warnings.append("Part of the area lies outside the documented coverage (United States; it touches %s). "
+                            "Tiles outside the coverage will be missing but the request is charged in full."
+                            % ", ".join(regions))
+        area = preflight.area_assessment(aoi.area_sq_km, body["granularity"],
+                                         plan_type=self.last_usage.plan_type if self.last_usage else None)
+        if area["block"]:
+            return area["block"], warnings
+        warnings.extend(area["warnings"])
+        dt = body["date_time"]
+        recent = payload.recent_data_warning(dt["start_date"], dt.get("end_date"))
+        if recent:
+            warnings.append(recent)
+        previous = self._previous_identical(body)
+        if previous:
+            warnings.append(previous)
+        return None, warnings
+
+    def _previous_identical(self, body):
+        """Text describing an identical completed request from this session or the output folder, or None."""
+        fp = preflight.request_fingerprint(body, self.base_url)
+        hit = self._completed_requests.get(fp)
+        if hit:
+            activity_id, path, when = hit
+            return ("An identical request was already completed in this session (%s, activity %s, saved as %s). "
+                    "Submitting it again is charged again and returns the same tiles."
+                    % (when.strftime("%H:%M"), activity_id, os.path.basename(path or "-")))
+        meta = output.find_previous_result(self.output_dir.filePath(), fp)
+        if meta:
+            return ("An identical request was already completed on %s (activity %s, file %s in the output folder). "
+                    "Submitting it again is charged again and returns the same tiles. You can load that file instead."
+                    % (meta.get("saved_at", "?"), meta.get("activity_id", "?"), os.path.basename(meta["path"])))
+        return None
 
     def _on_generate(self):
         if self.job is not None and self.job.is_active:
             return
         demo_mode = self.demo_check.isChecked()
         try:
-            body, aoi = self._collect_inputs()
+            body, aoi, notes = self._collect_inputs()
         except (ValidationError, ApiError) as exc:
             self._show_error(str(exc))
             return
+        for note in notes:
+            self.log_line(note, Qgis.Warning)
 
         self.last_request_summary = payload.describe_request(body)
         self.last_aoi_polygon = aoi.geometry_geojson
         self.last_analytic_type = body["analytic_type"]
         self.last_threshold = body.get("threshold")
         self.last_demo = demo_mode
+        self.last_fingerprint = preflight.request_fingerprint(body, self.base_url)
         analysis_label = "%s (%s)" % (contract.ANALYSIS_LABELS[self.last_analytic_type],
                                       output.unit_label(self.last_analytic_type))
-        self.last_map_data = None
-        self.last_stats = None
-        self.stats_label.setText("-")
-        self.activity_label.setText("")
 
         if demo_mode:
             fixture = demo.fixture_for_request(body["analytic_type"], body["date_time"]["filter_type"])
@@ -651,23 +813,43 @@ class HeatmapDialog(QDialog):
             if not key:
                 self._show_error("Enter your FortyGuard API key (or enable Demo Mode for an offline test).")
                 return
+            block, warnings = self._preflight(body, aoi)
+            if block:
+                self._show_error(block)
+                return
+            if self._unfinished_activity and not self.skip_checks_check.isChecked():
+                warnings.append("The previous request (activity %s) was stopped or timed out before its result was "
+                                "seen; it may have completed and been charged. Use 'Check Again' to fetch it before "
+                                "paying for a new one." % self._unfinished_activity)
             base_url = self.base_url
+            cost = preflight.expected_cost_text(self.last_usage.plan_type if self.last_usage else None,
+                                                self.last_usage.remaining_credits if self.last_usage else None)
             msg = ("Submit a live FortyGuard request?\n\n"
                    "Environment: %s\n"
                    "Analysis: %s\n"
                    "Area: feature %s of '%s' (~%.2f km² / %.2f mi²)\n"
-                   "Request: %s (filter type %d)\n\n"
-                   "A completed request consumes credits from your plan (documented: 3,500 on API Basic/Startup, "
-                   "4,220 on API Premium). Coverage is documented as United States only.\n\nContinue?"
+                   "Request: %s (filter type %d)\n\n%s\n"
                    % (base_url, analysis_label, aoi.feature_id, aoi.layer_name, aoi.area_sq_km, aoi.area_sq_mi,
-                      self.last_request_summary, body["date_time"]["filter_type"]))
+                      self.last_request_summary, body["date_time"]["filter_type"], cost))
+            if notes:
+                msg += "\n" + "\n".join(notes) + "\n"
+            if warnings:
+                msg += "\nWARNINGS:\n" + "\n".join("- " + w for w in warnings) + "\n"
+                for w in warnings:
+                    self.log_line("Pre-check warning: %s" % w, Qgis.Warning)
+            msg += "\nContinue?"
             if self._confirm("Confirm live request", msg) is not True:
+                self.log_line("Request cancelled by the user before submission (nothing sent).")
                 return
             self.client = HeatmapApiClient(key, base_url=base_url, parent=self)
             self.log_line("Submitting live %s request to %s: %s (area ~%.2f km², source CRS %s, key %s)."
                           % (analysis_label, base_url, self.last_request_summary, aoi.area_sq_km,
                              aoi.source_crs_authid, credentials.mask(key)))
 
+        self.last_map_data = None
+        self.last_stats = None
+        self.stats_label.setText("-")
+        self.activity_label.setText("")
         self._start_job(body)
 
     def _confirm(self, title, text):
@@ -690,7 +872,7 @@ class HeatmapDialog(QDialog):
     def _dispose_job(self):
         if self.job is not None:
             with contextlib.suppress(Exception):
-                self.job.stop()
+                self.job.abandon()
             self.job.deleteLater()
             self.job = None
 
@@ -705,13 +887,26 @@ class HeatmapDialog(QDialog):
 
     def _on_stop(self):
         if self.job is not None:
+            if self.job._awaiting_submit and not self.last_demo:
+                self.log_line("Stop requested while the request is being submitted; waiting for the activity ID so a "
+                              "possibly paid job is not lost.", Qgis.Warning)
             self.job.stop()
 
     def _on_stopped(self, activity_id):
         self._set_busy(False)
-        self.status_label.setText("Stopped waiting (server job not cancelled)")
-        self.log_line("Stopped waiting locally. The FortyGuard job %s may still complete on the server; "
-                      "use 'Check Again' later." % (activity_id or "(no activity id)"), Qgis.Warning)
+        if self.last_demo:
+            self.status_label.setText("Demo stopped")
+            self.log_line("Demo replay stopped. No request was sent to FortyGuard and nothing was charged; "
+                          "click Generate again to replay the synthetic data.")
+            return
+        if activity_id:
+            self._unfinished_activity = activity_id
+            self.status_label.setText("Stopped waiting (server job not cancelled)")
+            self.log_line("Stopped waiting locally. The FortyGuard job %s may still complete on the server and be "
+                          "charged; use 'Check Again' later to fetch it without paying again." % activity_id, Qgis.Warning)
+        else:
+            self.status_label.setText("Stopped before submission")
+            self.log_line("Stopped before any job was created; nothing was sent or charged.")
 
     def _on_resume(self):
         if self.job is None or not self.job.can_resume:
@@ -726,8 +921,21 @@ class HeatmapDialog(QDialog):
         self._set_busy(False)
         self.status_label.setText("Failed (%s)" % kind)
         self.log_line("ERROR [%s]: %s" % (kind, message), Qgis.Critical)
+        activity_id = self.job.activity_id if self.job else ""
         if kind == "auth":
             message += " Tip: use 'Check key and credits' to verify the key for the selected environment."
+        if kind == "empty" and activity_id and not self.last_demo:
+            self._completed_requests[self.last_fingerprint] = (activity_id, None, _dt.datetime.now())
+            self._unfinished_activity = None
+            with contextlib.suppress(ApiError, OSError):
+                path = output.save_empty_record(self.output_dir.filePath(), self.job.last_stats, self.last_request_summary,
+                                                activity_id, self.last_analytic_type, fingerprint=self.last_fingerprint,
+                                                environment=self.base_url)
+                self.log_line("A record of this charged activity was saved as %s" % path)
+        elif kind in ("timeout", "server", "network", "rate_limited", "unknown") and activity_id and not self.last_demo:
+            self._unfinished_activity = activity_id   # outcome unknown: the job may complete and be charged
+        elif kind in ("no_data", "invalid_input", "failed") and not self.last_demo:
+            self._unfinished_activity = None          # the API rejected or failed it: nothing to fetch later
         if self.iface:
             self.iface.messageBar().pushMessage("FortyGuard Temperature Intelligence Layer", message, level=Qgis.Critical, duration=15)
 
@@ -736,6 +944,9 @@ class HeatmapDialog(QDialog):
         self.last_stats = stats_data
         at = self.last_analytic_type
         unit_kind = contract.UNIT_KIND.get(at, "celsius")
+        activity_id = self.job.activity_id if self.job else ""
+        if not self.last_demo:
+            self._unfinished_activity = None
         try:
             schema = responses.result_schema(map_data)
             if at == contract.ANALYTIC_TYPE_TCM:
@@ -757,11 +968,13 @@ class HeatmapDialog(QDialog):
                 if api_stats.get("analytic_type") and api_stats["analytic_type"] != at:
                     self.log_line("stats_data.analytic_type is '%s' but '%s' was requested."
                                   % (api_stats["analytic_type"], at), Qgis.Warning)
-            activity_id = self.job.activity_id if self.job else ""
             gpath, mpath = output.save_result(self.output_dir.filePath(), map_data, stats_data,
                                               self.last_request_summary, activity_id, demo=self.last_demo,
-                                              analytic_type=at)
+                                              analytic_type=at, fingerprint=self.last_fingerprint,
+                                              environment=None if self.last_demo else self.base_url)
             self.log_line("Saved result to %s" % gpath)
+            if not self.last_demo and self.last_fingerprint:
+                self._completed_requests[self.last_fingerprint] = (activity_id, gpath, _dt.datetime.now())
             name = output.layer_name(measure, self.last_request_summary, demo=self.last_demo, analytic_type=at)
             layer = output.load_layer(gpath, name, measure, self.last_request_summary, activity_id,
                                       demo=self.last_demo, analytic_type=at, threshold=self.last_threshold)
@@ -797,20 +1010,27 @@ class HeatmapDialog(QDialog):
             return
         try:
             array, gt, st = surface.build_surface(map_data, measure, aoi_polygon=self.last_aoi_polygon)
-            tif = surface.write_geotiff(surface.surface_path_for(gpath), array, gt)
+            tif = surface.write_geotiff(surface.surface_path_for(gpath), array, gt,
+                                        description=surface.band_description(at, measure))
             sname = output.surface_layer_name(base_name)
             rl = output.load_surface_layer(tif, sname, measure, self.last_request_summary, activity_id, demo=self.last_demo,
                                            analytic_type=at, threshold=self.last_threshold)
             styling.apply_surface_style(rl, unit_kind, st["min"], st["max"])
+            lo, hi, widened = styling.surface_colour_span(unit_kind, st["min"], st["max"])
             # surface on top, tiles kept but hidden (exact values stay one click away)
             root = QgsProject.instance().layerTreeRoot()
             node = root.findLayer(tiles_layer.id())
             if node is not None:
                 node.setItemVisibilityChecked(False)
             self.last_surface_layer = rl
-            self.log_line("Added smooth surface '%s' (%d x %d pixels, %d valid; range %.2f to %.2f). The tiles layer was "
-                          "added hidden; presentation only, values between tile centres are estimates."
-                          % (sname, st["cols"], st["rows"], st["valid_pixels"], st["min"], st["max"]))
+            unit = output.unit_label(at)
+            self.log_line("Added smooth surface '%s' (%d x %d pixels, %d valid; range %.2f to %.2f %s, spread %.2f). The tiles "
+                          "layer was added hidden; presentation only, values between tile centres are estimates."
+                          % (sname, st["cols"], st["rows"], st["valid_pixels"], st["min"], st["max"], unit, st["max"] - st["min"]))
+            if widened:
+                self.log_line("The colour scale spans %.2f to %.2f %s (a minimum of %g %s) so that the small spread of "
+                              "%.2f %s is not shown as a strong hot/cold contrast."
+                              % (lo, hi, unit, styling.MIN_SURFACE_SPAN.get(unit_kind, 0), unit, st["max"] - st["min"], unit))
         except (ApiError, Exception) as exc:  # a surface failure must never lose the tiles result
             self.log_line("Smooth surface could not be created (%s). The tiles layer is shown instead." % exc, Qgis.Warning)
             node = QgsProject.instance().layerTreeRoot().findLayer(tiles_layer.id())
@@ -858,9 +1078,11 @@ class HeatmapDialog(QDialog):
                     ts.get("mean", float("nan")),
                     (", sd %.2f" % ts["standard_deviation"]) if "standard_deviation" in ts else ""))
             if summary["count"]:
-                parts.append("Measure '%s': %d valid tiles, range %.2f to %.2f %s (mean %.2f); %d missing" % (
-                    measure, summary["count"], summary["min"], summary["max"], contract.TCM_UNIT, summary["mean"],
-                    summary["missing"]))
+                parts.append("Measure '%s': %d valid tiles, range %.2f to %.2f %s (spread %.2f, mean %.2f); %d missing" % (
+                    measure, summary["count"], summary["min"], summary["max"], contract.TCM_UNIT,
+                    summary["max"] - summary["min"], summary["mean"], summary["missing"]))
+                if summary["max"] == summary["min"]:
+                    parts.append("All tiles share the same value; the legend shows a single class.")
         elif kind == "hours":
             d = responses.duration_summary(md, measure)
             api = responses.analysis_stats(stats_data)
@@ -871,6 +1093,8 @@ class HeatmapDialog(QDialog):
                              % (contract.ANALYSIS_LABELS[at], d["count"], d["positive_pct_of_valid_tiles"], d["positive"],
                                 label, d["max"], " (longest continuous run)" if at == contract.ANALYTIC_TYPE_PERSISTENCE else "",
                                 d["missing"]))
+                if d["max"] == d["min"]:
+                    parts.append("All tiles share the same value (%.1f h); the legend shows a single class." % d["max"])
             if api:
                 parts.append("API stats_data: %s" % ", ".join(
                     "%s %s" % (k, ("%.2f" % v) if isinstance(v, float) else v)
