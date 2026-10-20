@@ -25,9 +25,20 @@ TITLE = ParagraphStyle("TITLE", parent=H1, fontSize=24, leading=28, spaceAfter=4
 SUB = ParagraphStyle("SUB", parent=P, fontSize=12, leading=16, textColor=MUTED)
 
 
+import tempfile
+_TMP = tempfile.mkdtemp(prefix="fg_report_")
+
+
 def img(name, max_w=W - 40 * mm, max_h=110 * mm):
+    """Embed a screenshot downscaled to 1400 px (JPEG) so the PDF stays small enough to attach to a ticket."""
     path = os.path.join(IMG, name) if not os.path.isabs(name) else name
-    iw, ih = PILImage.open(path).size
+    im = PILImage.open(path).convert("RGB")
+    if im.size[0] > 1400 and name.lower().endswith(".png") and "icon" not in name:
+        ratio = 1400.0 / im.size[0]
+        im = im.resize((1400, int(im.size[1] * ratio)), PILImage.LANCZOS)
+        path = os.path.join(_TMP, os.path.splitext(os.path.basename(name))[0] + ".jpg")
+        im.save(path, "JPEG", quality=82, optimize=True)
+    iw, ih = im.size
     scale = min(max_w / iw, max_h / ih)
     return Image(path, iw * scale, ih * scale)
 
