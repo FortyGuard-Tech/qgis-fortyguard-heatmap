@@ -1,5 +1,12 @@
 # Changelog – FortyGuard Temperature Intelligence Layer (QGIS plugin)
 
+## 0.5.1 – 2026-10-20
+
+- **Legend classes** option in the Output box (3 to 20, default 10, remembered):
+  more classes show finer temperature differences on the tiles layer, as
+  requested in the report review. Identical classes are still merged; Peak
+  temperature time keeps its six clock classes. Restyle uses the same setting.
+
 ## 0.5.0 – 2026-10-20
 
 Fixes for every issue reported in the FortyGuard internal testing round of

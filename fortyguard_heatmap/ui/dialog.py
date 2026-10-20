@@ -41,6 +41,9 @@ SETTING_THRESHOLD = "fortyguard_heatmap/threshold_c"
 SETTING_GRANULARITY = "fortyguard_heatmap/granularity_m"
 SETTING_START_TIME = "fortyguard_heatmap/start_time"
 SETTING_END_TIME = "fortyguard_heatmap/end_time"
+SETTING_CLASSES = "fortyguard_heatmap/legend_classes"
+DEFAULT_CLASSES = 10          # legend classes for the tiles layer (3-20); more classes show finer differences
+MIN_CLASSES, MAX_CLASSES = 3, 20
 APPEARANCE_TILES = "tiles"
 APPEARANCE_SMOOTH = "smooth"
 FILTER_MONTH = "month"  # UI-only choice; submitted as filter_type 4 with the month's first/last dates
@@ -348,6 +351,14 @@ class HeatmapDialog(QDialog):
                                          "the exact numbers. Not available for Peak temperature time (hours are cyclic).")
         f.addRow("Appearance", self.appearance_combo)
 
+        self.classes_spin = QSpinBox()
+        self.classes_spin.setRange(MIN_CLASSES, MAX_CLASSES)
+        self.classes_spin.setValue(DEFAULT_CLASSES)
+        self.classes_spin.setToolTip("Number of colour classes for the tiles layer (quantile classes for temperature, "
+                                     "equal intervals for hours). More classes show finer differences; identical "
+                                     "classes are merged automatically. Peak temperature time always uses six clock classes.")
+        f.addRow("Legend classes", self.classes_spin)
+
         out_row = QHBoxLayout()
         self.output_dir = QgsFileWidget()
         self.output_dir.setStorageMode(QgsFileWidget.GetDirectory)
@@ -475,6 +486,7 @@ class HeatmapDialog(QDialog):
         self.threshold_spin.valueChanged.connect(lambda v: QgsSettings().setValue(SETTING_THRESHOLD, v))
         self.granularity_combo.currentIndexChanged.connect(
             lambda _i: QgsSettings().setValue(SETTING_GRANULARITY, self.granularity_combo.currentData()))
+        self.classes_spin.valueChanged.connect(lambda v: QgsSettings().setValue(SETTING_CLASSES, v))
         self.start_time.timeChanged.connect(lambda t: QgsSettings().setValue(SETTING_START_TIME, t.toString("HH:mm")))
         self.end_time.timeChanged.connect(lambda t: QgsSettings().setValue(SETTING_END_TIME, t.toString("HH:mm")))
         self._on_layer_changed(self.layer_combo.currentLayer())
@@ -498,6 +510,10 @@ class HeatmapDialog(QDialog):
             g = int(s.value(SETTING_GRANULARITY, contract.DEFAULT_GRANULARITY))
             if self.granularity_combo.findData(g) >= 0:
                 self.granularity_combo.setCurrentIndex(self.granularity_combo.findData(g))
+        with contextlib.suppress(TypeError, ValueError):
+            n = int(s.value(SETTING_CLASSES, DEFAULT_CLASSES))
+            if MIN_CLASSES <= n <= MAX_CLASSES:
+                self.classes_spin.setValue(n)
         for key, widget in ((SETTING_START_TIME, self.start_time), (SETTING_END_TIME, self.end_time)):
             t = QTime.fromString(str(s.value(key, "")), "HH:mm")
             if t.isValid():
@@ -525,7 +541,7 @@ class HeatmapDialog(QDialog):
                   self.output_default_btn, self.deadline_spin, self.load_key_btn, self.save_key_btn,
                   self.forget_key_btn, self.demo_aoi_btn, self.base_url_combo, self.check_key_btn,
                   self.analysis_combo, self.threshold_spin, self.month_edit, self.appearance_combo,
-                  self.skip_checks_check):
+                  self.skip_checks_check, self.classes_spin):
             w.setEnabled(not busy)
         if not busy:
             self._on_demo_toggled(self.demo_check.isChecked())
@@ -978,7 +994,7 @@ class HeatmapDialog(QDialog):
             name = output.layer_name(measure, self.last_request_summary, demo=self.last_demo, analytic_type=at)
             layer = output.load_layer(gpath, name, measure, self.last_request_summary, activity_id,
                                       demo=self.last_demo, analytic_type=at, threshold=self.last_threshold)
-            n = styling.apply_analysis_style(layer, measure, unit_kind)
+            n = styling.apply_analysis_style(layer, measure, unit_kind, classes=self.classes_spin.value())
             self.last_layer = layer
             summary = responses.numeric_summary(map_data, measure)
             self.log_line("Added layer '%s' (%d tiles, %d classes on '%s' in %s; %d tiles without a value)."
@@ -1057,7 +1073,7 @@ class HeatmapDialog(QDialog):
                 raise ApiError("The last layer is no longer in the project.", kind="malformed")
             measures = responses.available_measures(self.last_map_data)
             measure = self._choose_measure(measures)
-            n = styling.apply_temperature_style(self.last_layer, measure)
+            n = styling.apply_temperature_style(self.last_layer, measure, classes=self.classes_spin.value())
             self.last_layer.setName(output.layer_name(measure, self.last_request_summary, demo=self.last_demo))
             self.last_layer.setCustomProperty(output.PROP_MEASURE, measure)
             self._show_stats(self.last_stats, measure, responses.numeric_summary(self.last_map_data, measure))

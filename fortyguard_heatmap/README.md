@@ -1,4 +1,4 @@
-# FortyGuard Temperature Intelligence Layer for QGIS – user guide (0.5.0)
+# FortyGuard Temperature Intelligence Layer for QGIS – user guide (0.5.1)
 
 Generate FortyGuard temperature heatmaps (tcm, °C) for a polygon in your QGIS
 project and add them as styled layers, using **your own FortyGuard API key**.
@@ -37,8 +37,9 @@ and Ubuntu Linux (QGIS 3.40.15). QGIS 4 (Qt 6) is not supported yet.
    "Temperature data is unavailable" (free of charge). The dialog therefore
    defaults to one week ago and warns about more recent windows.
 5. **Output** – resolution (60 / 80 / 100 m), the measure to style for daily
-   outputs (mean / minimum / maximum), the output folder (default
-   `Documents/FortyGuard Heatmaps`) and the maximum wait.
+   outputs (mean / minimum / maximum), the appearance, the number of **legend
+   classes** (3 to 20, default 10; more classes show finer differences), the
+   output folder (default `Documents/FortyGuard Heatmaps`) and the maximum wait.
 6. Click **Generate Heatmap**, read the confirmation and continue. Before a
    paid request the plugin checks the area (coverage, size), the dates and
    whether the identical request was already completed, and either warns or

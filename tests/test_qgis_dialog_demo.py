@@ -418,6 +418,20 @@ class DialogAnalysisTests(unittest.TestCase):
         self.assertEqual(body["threshold"], 35.0)
         self.assertEqual(body["direction"], "above")
 
+    def test_legend_classes_option(self):
+        self.assertEqual(self.dlg.classes_spin.value(), 10)
+        self.dlg.classes_spin.setValue(16)
+        self._select("tcm")
+        lyr = self._run()
+        n = len(lyr.renderer().ranges())
+        self.assertGreater(n, 7); self.assertLessEqual(n, 16)
+        self.dlg.classes_spin.setValue(4)
+        self.dlg.restyle_btn.click()
+        self.assertLessEqual(len(lyr.renderer().ranges()), 4)
+        again = HeatmapDialog(self.iface)   # remembered
+        self.assertEqual(again.classes_spin.value(), 4)
+        again.shutdown()
+
     def test_exceedance_demo_layer_and_summary(self):
         self._select("exceedance")
         self.dlg.threshold_spin.setValue(35.0)

@@ -1,4 +1,4 @@
-# Test report – FortyGuard Temperature Intelligence Layer 0.5.0
+# Test report – FortyGuard Temperature Intelligence Layer 0.5.1 (0.5.0 fixes + legend classes option)
 
 ## 0. Internal testing round (2026-10-19) and the fixes in 0.5.0
 
