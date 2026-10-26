@@ -182,6 +182,21 @@ observations, not documentation, and drive the plugin's defaults and pre-checks.
 | Transient 500 on submit | 1 of 17 submissions returned HTTP 500 `Internal server error occurred`; no job, no charge; the same request succeeded on retry. | Submit 500 message says no job was created and nothing was charged. |
 | Direct API comparison | Plugin payloads, tile IDs, geometries, values, statistics and saved GeoJSON were identical to hand-written requests for all four analyses (Phoenix, 102 tiles each). | No change. |
 
+## Research re-check (2026-10-26)
+
+Sources re-read: the live documentation bundle (`main.679ac203a591eb01.js`), the public pricing and
+products pages, the quickstart repository (last commit 2026-08-04) and free production probes.
+
+| Topic | Documentation / public source | Production behaviour on 2026-10-26 | Plugin response (0.5.4) |
+|-------|------------------------------|------------------------------------|-------------------------|
+| Date range | Docs: 2019-01-01 through now + 12 h. Quickstart README: "the temperature catalog covers 2021 to today; earlier dates fail with a no-data error; future dates are unsupported". | New York area with 2019-07-15 and 2020-07-15: HTTP 400, coverage message (see below). | `CATALOG_START_ISO = 2021-01-01`: warning before submission; 2019 stays the hard minimum. |
+| Data latency | Docs: up to 12 h into the future. | Phoenix: 2026-10-13 completed; 10-15, 10-17 and 10-19 rejected ("Temperature data is unavailable for one or more hours"). The newest available day was 10-13 both on 10-20 and on 10-26, i.e. the feed had not advanced for 13 days. | `DATA_LATENCY_DAYS = 14`; the no-data message suggests going back two weeks or more. |
+| Coverage inside the US | Docs: United States on all plans. API message: "Availability within the United States also depends on the tool, location, date, and data source." | The lower-Manhattan demo area, which completed twice on 2026-10-20, was rejected for every date (2019 to 2026) with HTTP 400 "The requested location is outside supported U.S. coverage". Phoenix completed. | Coverage-message 400 classified as `no_data` with an explanation; new "Add sample live AOI (Phoenix, AZ)" button; the demo AOI is labelled for Demo Mode. |
+| Plan names | Pricing page now: BASIC $79 (1,000,000 credits, 10 mi2) and PRO $289 (5,000,000 credits, 50 mi2). Docs and release notes (v1.0.0, 2026-04-22): API Basic, API Premium, API Startup; 3,500 / 4,220 credits per heatmap. | Usage endpoint plan_type values seen: "Premium", "Hackathon". | `PLAN_ALIASES` maps Pro/Premium/Startup/Basic to the documented rows. |
+| Release notes | Only v1.0.0 (2026-04-22) is listed; no API change announced since the contract was written. | - | No change. |
+| Credits usage page | Uses `cycle_remaining_credits` for its progress bar. | `total_remaining_credits` is the figure that moves (unchanged finding). | Unchanged. |
+| Key expiry | - | The Hackathon key's expiry moved from 2027-09-15 to 2027-11-15; `plan_details.active` is false although the key works. | Unchanged. |
+
 ## Plans, credits, limits, coverage (documented 2026-10-12)
 
 | Item | API Basic | API Startup | API Premium | Source |

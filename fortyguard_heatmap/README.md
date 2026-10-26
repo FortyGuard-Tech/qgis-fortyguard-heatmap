@@ -1,4 +1,4 @@
-# FortyGuard Temperature Intelligence Layer for QGIS – user guide (0.5.3)
+# FortyGuard Temperature Intelligence Layer for QGIS – user guide (0.5.4)
 
 Generate FortyGuard temperature heatmaps (tcm, °C) for a polygon in your QGIS
 project and add them as styled layers, using **your own FortyGuard API key**.
@@ -33,9 +33,9 @@ and Ubuntu Linux (QGIS 3.40.15). QGIS 4 (Qt 6) is not supported yet.
    single day, range of days ≤ 31 days counting both dates, calendar month) and
    the required dates/times. Times are the local time of the selected area.
    The API documents dates from 2019-01-01, but **data for the most recent days
-   (about the last 7) is usually not available yet**: the API then answers
+   (about the last one to two weeks) is usually not available yet**: the API then answers
    "Temperature data is unavailable" (free of charge). The dialog therefore
-   defaults to one week ago and warns about more recent windows.
+   defaults to two weeks ago and warns about more recent windows.
 5. **Output** – resolution (60 / 80 / 100 m), the measure to style for daily
    outputs (mean / minimum / maximum), the appearance, the number of **legend
    classes** (3 to 20, default 10; more classes show finer differences), the
@@ -68,7 +68,7 @@ pre-checks* bypasses them):
 | Area smaller than one tile | Warning (0 tiles likely, still charged). |
 | Area above your plan allowance (10 mi² Basic/Startup, 50 mi² Premium) | Warning. |
 | Area above 500 mi² | Blocked. Such jobs were accepted, charged and never finished (HTTP 504). |
-| Window ends within the last 7 days | Warning (data usually not available yet; a rejection is free). |
+| Window ends within the last 14 days | Warning (data usually not available yet; a rejection is free). |
 | Identical request already completed (this session or a file in the output folder) | Warning: it is charged again and returns the same tiles. |
 | A previous request was stopped or timed out | Warning: use *Check Again* before paying for a new one. |
 

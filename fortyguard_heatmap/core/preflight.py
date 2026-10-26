@@ -81,6 +81,17 @@ def tile_area_sq_km(granularity_m):
     return (float(granularity_m) / 1000.0) ** 2
 
 
+def documented_plan(plan_type):
+    """Documented plan row name for a usage-endpoint plan_type (e.g. 'Pro' -> 'API Premium'), else None."""
+    if not plan_type:
+        return None
+    text = str(plan_type).lower()
+    for alias, name in contract.PLAN_ALIASES.items():
+        if alias in text:
+            return name
+    return None
+
+
 def area_assessment(area_sq_km, granularity_m, plan_type=None):
     """Return {'block': str|None, 'warnings': [str]} for the area of interest.
 
@@ -106,11 +117,9 @@ def area_assessment(area_sq_km, granularity_m, plan_type=None):
                  % (area_sq_mi, contract.AREA_WARN_SQ_MI, contract.AREA_BLOCK_SQ_MI))
         return {"block": block, "warnings": warnings, "area_sq_mi": area_sq_mi}
     cap = None
-    if plan_type:
-        for name, value in contract.AREA_CAP_SQ_MI.items():
-            if name.lower().replace("api ", "") in str(plan_type).lower():
-                cap = (name, value)
-                break
+    plan_name = documented_plan(plan_type)
+    if plan_name:
+        cap = (plan_name, contract.AREA_CAP_SQ_MI[plan_name])
     if cap and area_sq_mi > cap[1]:
         warnings.append("The area (~%.2f mi²) is above the documented %d mi² allowance of your plan (%s). The API may "
                         "reject it or charge for it; the documentation does not say which." % (area_sq_mi, cap[1], cap[0]))
@@ -131,11 +140,9 @@ def request_fingerprint(payload, base_url=""):
 def expected_cost_text(plan_type=None, remaining_credits=None):
     """Plain-language credit cost for the confirmation dialog."""
     cost = None
-    if plan_type:
-        for name, value in contract.CREDITS_PER_REQUEST.items():
-            if name.lower().replace("api ", "") in str(plan_type).lower():
-                cost = (name, value)
-                break
+    plan_name = documented_plan(plan_type)
+    if plan_name:
+        cost = (plan_name, contract.CREDITS_PER_REQUEST[plan_name])
     if cost:
         text = "Expected cost on your plan (%s): %s credits per completed request (documented)." % (
             cost[0], "{:,}".format(cost[1]))

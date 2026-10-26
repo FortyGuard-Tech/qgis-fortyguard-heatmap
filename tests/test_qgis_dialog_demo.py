@@ -355,6 +355,20 @@ class DialogDemoTests(unittest.TestCase):
         self.assertIn("no new submission", dlg.log.toPlainText())
         dlg.shutdown()
 
+    def test_sample_live_aoi_button_adds_a_covered_phoenix_square(self):
+        from fortyguard_heatmap.core import preflight
+        dlg = HeatmapDialog(self.iface)
+        dlg.sample_aoi_btn.click()
+        layer = dlg.layer_combo.currentLayer()
+        self.assertIsNotNone(layer)
+        self.assertIn("Phoenix", layer.name())
+        self.assertEqual(layer.selectedFeatureCount(), 1)
+        self.assertIn("inside documented coverage", dlg.selection_label.text())
+        self.assertIn("km²", dlg.selection_label.text())
+        body, aoi, notes = dlg._collect_inputs() if dlg.output_dir.filePath() else (None, None, None)
+        self.assertEqual(preflight.coverage_status(aoi.geometry_geojson)[0], "inside")
+        self.assertAlmostEqual(aoi.area_sq_km, 4.0, delta=0.1)
+
     def test_check_credits_requires_key(self):
         dlg = HeatmapDialog(self.iface)
         shown = []

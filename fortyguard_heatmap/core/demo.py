@@ -25,6 +25,7 @@ FIXTURES = {
     "time_of_measure": "demo_result_time_of_measure.geojson",
 }
 DEMO_AOI_FILE = "demo_aoi.geojson"
+SAMPLE_LIVE_AOI_FILE = "sample_aoi_phoenix.geojson"   # a real area that the production API covers (Phoenix, AZ)
 
 
 def fixture_for_filter(filter_type):
@@ -51,6 +52,12 @@ def load_fixture(name):
 def load_demo_aoi():
     """Return the demo AOI as a GeoJSON Feature (EPSG:4326)."""
     with open(os.path.join(FIXTURE_DIR, DEMO_AOI_FILE), "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def load_sample_live_aoi():
+    """Return the Phoenix sample AOI (a real, covered area for live requests) as a GeoJSON Feature."""
+    with open(os.path.join(FIXTURE_DIR, SAMPLE_LIVE_AOI_FILE), "r", encoding="utf-8") as fh:
         return json.load(fh)
 
 

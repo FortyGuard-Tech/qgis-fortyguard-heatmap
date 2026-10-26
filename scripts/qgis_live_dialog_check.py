@@ -112,7 +112,10 @@ def main():
 
         def _generate():
             dlg.demo_check.setChecked(False)
-            dlg.demo_aoi_btn.click()
+            if os.environ.get("FG_AOI", "demo") == "phoenix":
+                dlg.sample_aoi_btn.click()
+            else:
+                dlg.demo_aoi_btn.click()
             lyr = dlg.layer_combo.currentLayer()
             step("aoi_selected", lyr is not None and lyr.selectedFeatureCount() == 1, crs=lyr.crs().authid(),
                  selection_text=dlg.selection_label.text())
@@ -168,7 +171,11 @@ def main():
                     step("result_layer_added", False, status=dlg.status_label.text(), log=log_text[-1500:])
                     dlg.grab().save(dshot)
                     return finish(False)
-                result = QgsProject.instance().mapLayer(new.pop())
+                from qgis.core import QgsVectorLayer
+                new_layers = [QgsProject.instance().mapLayer(i) for i in new]
+                vectors = [l for l in new_layers if isinstance(l, QgsVectorLayer)]
+                step("surface_layer_added", len(new_layers) - len(vectors) >= 1, layers=[l.name() for l in new_layers])
+                result = vectors[0] if vectors else new_layers[0]
                 r = result.renderer()
                 styled = isinstance(r, QgsGraduatedSymbolRenderer)
                 step("result_layer_added", True, layer_name=result.name(), features=result.featureCount(),

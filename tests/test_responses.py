@@ -65,8 +65,19 @@ class SubmitParsingTests(unittest.TestCase):
         text = str(cm.exception)
         self.assertIn("no temperature data yet", text)
         self.assertIn("Nothing was charged", text)
-        self.assertIn("days later", text)
+        self.assertIn("weeks later", text)
         self.assertIn("Temperature data is unavailable", text)
+
+    def test_coverage_message_400_is_explained_as_no_data(self):
+        # Observed 2026-10-26 for a New York area with a 2020 date
+        body = (b'{"error":true,"status_code":400,"details":{"message":"FortyGuard currently provides data only for '
+                b'supported regions within the United States. The requested location is outside supported U.S. coverage. '
+                b'Availability within the United States also depends on the tool, location, date, and data source."}}')
+        with self.assertRaises(ApiError) as cm:
+            responses.parse_submit_response(400, body)
+        self.assertEqual(cm.exception.kind, "no_data")
+        text = str(cm.exception)
+        self.assertIn("2021", text); self.assertIn("Nothing was charged", text); self.assertIn("outside supported U.S. coverage", text)
 
     def test_submit_500_says_nothing_was_charged(self):
         with self.assertRaises(ApiError) as cm:

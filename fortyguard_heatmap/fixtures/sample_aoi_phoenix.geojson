@@ -1,0 +1,34 @@
+{
+ "type": "Feature",
+ "properties": {
+  "name": "Sample live AOI: Downtown Phoenix, AZ (2 km square, UTM-aligned)",
+  "note": "Real area for live requests. Verified on the production API on 2026-10-16, 2026-10-20 and 2026-10-26."
+ },
+ "geometry": {
+  "type": "Polygon",
+  "coordinates": [
+   [
+    [
+     -112.0831472,
+     33.440889
+    ],
+    [
+     -112.0616337,
+     33.4410751
+    ],
+    [
+     -112.0618535,
+     33.4591114
+    ],
+    [
+     -112.0833714,
+     33.4589252
+    ],
+    [
+     -112.0831472,
+     33.440889
+    ]
+   ]
+  ]
+ }
+}

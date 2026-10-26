@@ -1,4 +1,4 @@
-# Test report – FortyGuard Temperature Intelligence Layer 0.5.3
+# Test report – FortyGuard Temperature Intelligence Layer 0.5.4
 
 ## 0. Internal testing round (2026-10-19) and the fixes in 0.5.0
 
@@ -101,6 +101,36 @@ FortyGuard calls). Twelve defects were confirmed and fixed; each has a regressio
 | – | Hardening | Enter could trigger Generate; usage callback re-enabled a button mid-run; unfinished activity cleared too eagerly; surface memory on large areas | Non-default buttons; busy check; per-activity clearing; adaptive pixel grid, float32 |
 
 Automated result for 0.5.3 (2026-10-20): `scripts/run_tests.sh` → **96 pure-Python and 105 QGIS-runtime tests, 0 failed** (1 keychain test skipped headless).
+
+### 0e. Research re-check and full re-test (2026-10-26) → 0.5.4
+
+Research: the live documentation bundle, the pricing and products pages and the quickstart repository
+were re-read and compared with `core/contract.py` (details in `docs/API_CONTRACT.md`, "Research re-check").
+Three differences were found and handled: the catalog starts in 2021 (quickstart), the public plans are now
+named Basic / Pro, and the API answers "outside supported U.S. coverage" for in-US areas it no longer serves
+or for dates it has no data for.
+
+Production probes (free rejections unless stated):
+
+| Request | Result |
+|---------|--------|
+| New York demo area, 2019-07-15 / 2020-07-15 / 2024-07-15 / 2026-10-05 … 10-19 | All HTTP 400 "outside supported U.S. coverage". The same area completed twice on 2026-10-20: coverage changed on the API side. |
+| Phoenix 2 km square, 2024-07-15 | Completed (paid), 400 tiles. |
+| Phoenix, 2026-10-19 / 10-17 / 10-15 | HTTP 400 "Temperature data is unavailable for one or more hours". |
+| Phoenix, 2026-10-13 | Completed (paid), 400 tiles: the newest day with data, 13 days back. |
+| Phoenix through the installed dialog (`scripts/qgis_live_dialog_check.py`, FG_AOI=phoenix, FG_DATE=2026-10-13) | Completed (paid), activity aab471ce: 400 tiles, GeoJSON + sidecar + smooth-surface GeoTIFF saved, balance 8,334,980 → 8,330,760 (exactly 4,220). The check script itself then crashed on the raster layer (script bug, fixed); the plugin side completed. |
+| Phoenix through the installed dialog with the old default date (2026-10-19) | Rejected free with the no-data explanation: the reason the default moved to two weeks. |
+
+Consequences in 0.5.4: default date two weeks back (`DATA_LATENCY_DAYS = 14`), Calendar month clipped
+accordingly, a "Sample live AOI (Phoenix, AZ)" button next to the demo AOI, the coverage-message 400
+explained (location, date and data source), a warning for dates before 2021, and plan aliases for the
+pricing-page names. The in-app demo check (`scripts/qgis_gui_check.py`) passed on the installed build.
+
+Cost of this re-test: 3 completed requests × 4,220 = 12,660 credits (Phoenix 2024-07-15, Phoenix 2026-10-13
+headless, Phoenix 2026-10-13 through the dialog); 17 rejected probes were free.
+
+Automated result for 0.5.4 (2026-10-26): `scripts/run_tests.sh` → **99 pure-Python and 106 QGIS-runtime tests,
+0 failed** (1 keychain test skipped headless); Bandit clean; repository validator PASS.
 
 ---
 

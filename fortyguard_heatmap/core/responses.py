@@ -113,10 +113,21 @@ def error_for_http_status(http_status, body=None, context="request"):
         return ApiError("Rate limit exceeded (HTTP 429). Waiting longer before the next check." + suffix,
                         kind="rate_limited", http_status=429, retryable=True)
     if http_status in (400, 422):
+        if any(marker in api_msg.lower() for marker in contract.COVERAGE_MESSAGE_MARKERS):
+            return ApiError(
+                "FortyGuard has no data for this area and date (HTTP %d). Coverage inside the United States depends on "
+                "the location, the date and the data source: the same answer was observed for a lower-Manhattan area "
+                "that had worked days earlier, for dates before %s (the catalog starts in %s) and for the most recent "
+                "days. Try the sample Phoenix area (Area of interest box) or another date between %s and %s. Nothing "
+                "was charged: the API rejected the request before creating a job. API message: %s"
+                % (http_status, contract.CATALOG_START_ISO, contract.CATALOG_START_ISO[:4], contract.CATALOG_START_ISO,
+                   recent_data_cutoff().isoformat(), api_msg),
+                kind="no_data", http_status=http_status)
         if any(marker in api_msg.lower() for marker in contract.NO_DATA_MESSAGE_MARKERS):
             return ApiError(
                 "FortyGuard has no temperature data yet for part of the selected period (HTTP %d). Data for the "
-                "most recent days usually appears about %d days later, so choose dates ending on or before %s. "
+                "most recent days usually appears one to two weeks later (about %d days), so choose dates ending on or "
+                "before %s, or earlier if that date is rejected too. "
                 "Nothing was charged: the API rejected the request before creating a job. API message: %s"
                 % (http_status, contract.DATA_LATENCY_DAYS, recent_data_cutoff().isoformat(), api_msg),
                 kind="no_data", http_status=http_status)

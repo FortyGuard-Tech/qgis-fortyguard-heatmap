@@ -61,7 +61,7 @@ GETTING_STARTED = (
     "2. Click <i>Check key and credits</i>.<br>"
     "3. Pick exactly one polygon on the map (United States coverage).<br>"
     "4. Choose the analysis, date/time and resolution, then <i>Generate Heatmap</i>.<br>"
-    "Each completed request consumes credits of your plan. Data for the most recent days (about the last %d) "
+    "Each completed request consumes credits of your plan. Data for the most recent one to two weeks (about the last %d days) "
     "is usually not available yet.<br>"
     "Docs: <a href='" + contract.URL_DOCS + "'>API introduction</a> · "
     "<a href='" + contract.URL_DOCS_HEATMAP + "'>Create Heatmap</a> · "
@@ -232,9 +232,20 @@ class HeatmapDialog(QDialog):
         f.addRow("Polygon layer", self.layer_combo)
         self.selection_label = _wrapping_label("-")
         f.addRow("Selected feature", self.selection_label)
-        self.demo_aoi_btn = QPushButton("Add demo AOI layer (synthetic test area, USA)")
-        self.demo_aoi_btn.setToolTip("Adds a small synthetic polygon in EPSG:3857 over lower Manhattan and selects it.")
-        f.addRow("", self.demo_aoi_btn)
+        aoi_row = QHBoxLayout()
+        self.demo_aoi_btn = QPushButton("Add demo AOI layer (synthetic test area)")
+        self.demo_aoi_btn.setToolTip("Adds a small polygon in EPSG:3857 over lower Manhattan and selects it. Meant for Demo "
+                                     "Mode: the production API rejected this area as not covered on 2026-10-26.")
+        self.sample_aoi_btn = QPushButton("Add sample live AOI (Phoenix, AZ)")
+        self.sample_aoi_btn.setToolTip("Adds a real 2 km square over downtown Phoenix that the production API covers "
+                                       "(verified 2026-10-26) and selects it. Use it for live requests.")
+        aoi_row.addWidget(self.demo_aoi_btn); aoi_row.addWidget(self.sample_aoi_btn); aoi_row.addStretch(1)
+        f.addRow("", aoi_row)
+        cov_hint = QLabel("Coverage inside the United States depends on the location, the date and the data source "
+                          "(FortyGuard API message). If an area is rejected, try the Phoenix sample or another date.")
+        cov_hint.setWordWrap(True)
+        cov_hint.setStyleSheet("color: #555; font-size: 11px;")
+        f.addRow("", cov_hint)
         root.addWidget(area)
 
         # --- Analysis
@@ -320,8 +331,8 @@ class HeatmapDialog(QDialog):
 
         tz = QLabel("Start/end times are the local time of the selected area (confirmed by FortyGuard). "
                     "Peak temperature time results are reported in UTC. Dates default to %d days ago: FortyGuard data "
-                    "for the most recent days is usually not available yet (the API then answers 'Temperature data is "
-                    "unavailable', free of charge)." % contract.DATA_LATENCY_DAYS)
+                    "for the most recent one to two weeks is usually not available yet (the API then answers 'Temperature "
+                    "data is unavailable', free of charge; pick an earlier date)." % contract.DATA_LATENCY_DAYS)
         tz.setWordWrap(True)
         tz.setStyleSheet("color: #555; font-size: 11px;")
         f.addRow("", tz)
@@ -477,6 +488,7 @@ class HeatmapDialog(QDialog):
         self.activity_label.textChanged.connect(lambda _t: self._set_busy(bool(self.job and self.job.is_active)))
         self.layer_combo.layerChanged.connect(self._on_layer_changed)
         self.demo_aoi_btn.clicked.connect(self._add_demo_aoi_layer)
+        self.sample_aoi_btn.clicked.connect(self._add_sample_live_aoi_layer)
         self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
         self.analysis_combo.currentIndexChanged.connect(self._on_analysis_changed)
         self.generate_btn.clicked.connect(self._on_generate)
@@ -553,7 +565,7 @@ class HeatmapDialog(QDialog):
         for w in (self.key_edit, self.demo_check, self.layer_combo, self.filter_combo, self.start_date,
                   self.start_time, self.end_time, self.end_date, self.granularity_combo, self.output_dir,
                   self.output_default_btn, self.deadline_spin, self.load_key_btn, self.save_key_btn,
-                  self.forget_key_btn, self.demo_aoi_btn, self.base_url_combo, self.check_key_btn,
+                  self.forget_key_btn, self.demo_aoi_btn, self.sample_aoi_btn, self.base_url_combo, self.check_key_btn,
                   self.analysis_combo, self.threshold_spin, self.month_edit, self.appearance_combo,
                   self.skip_checks_check, self.classes_spin):
             w.setEnabled(not busy)
@@ -720,6 +732,22 @@ class HeatmapDialog(QDialog):
 
     # --------------------------------------------------------------- demo
 
+    def _add_sample_live_aoi_layer(self):
+        feat_gj = demo.load_sample_live_aoi()
+        layer = QgsVectorLayer("Polygon?crs=EPSG:4326&field=name:string(120)", "Sample live AOI: Downtown Phoenix (2 km square)", "memory")
+        f = QgsFeature(layer.fields())
+        f.setAttributes([feat_gj["properties"].get("name", "Sample live AOI")])
+        f.setGeometry(QgsGeometry.fromWkt(geometry._polygon_wkt(feat_gj["geometry"])))
+        layer.dataProvider().addFeatures([f])
+        layer.updateExtents()
+        QgsProject.instance().addMapLayer(layer)
+        layer.selectAll()
+        self.layer_combo.setLayer(layer)
+        if self.iface:
+            self.iface.mapCanvas().setExtent(self.iface.mapCanvas().mapSettings().layerExtentToOutputExtent(layer, layer.extent()))
+            self.iface.mapCanvas().refresh()
+        self.log_line("Added the Phoenix sample AOI (real area covered by the production API) and selected its feature.")
+
     def _add_demo_aoi_layer(self):
         feat_gj = demo.load_demo_aoi()
         geom = QgsGeometry.fromWkt(geometry._polygon_wkt(feat_gj["geometry"]))
@@ -795,6 +823,9 @@ class HeatmapDialog(QDialog):
         recent = payload.recent_data_warning(dt["start_date"], dt.get("end_date"))
         if recent:
             warnings.append(recent)
+        early = payload.early_date_warning(dt["start_date"])
+        if early:
+            warnings.append(early)
         previous = self._previous_identical(body)
         if previous:
             warnings.append(previous)

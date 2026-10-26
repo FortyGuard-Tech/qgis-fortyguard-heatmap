@@ -1,5 +1,25 @@
 # Changelog – FortyGuard Temperature Intelligence Layer (QGIS plugin)
 
+## 0.5.4 – 2026-10-26
+
+Research re-check of the FortyGuard documentation, pricing page, quickstart
+repository and the production API, plus a full re-test.
+
+- **Default date two weeks back** (`DATA_LATENCY_DAYS = 14`): on 2026-10-26
+  the newest day with data was 13 October, the same day as on 2026-10-20, so
+  the one-week default failed. Messages say "the most recent one to two weeks".
+- **Coverage inside the United States changed on the API side:** the
+  lower-Manhattan demo area, which completed on 2026-10-20, is now rejected for
+  every date with "outside supported U.S. coverage" while Phoenix works. The
+  answer is explained (location, date and data source) and a new **Add sample
+  live AOI (Phoenix, AZ)** button provides a verified real area for live
+  requests; the demo AOI is labelled for Demo Mode.
+- **Catalog start 2021:** FortyGuard's quickstart states the temperature
+  catalog covers 2021 to today; 2019 and 2020 dates were rejected in testing.
+  A warning is shown before submission; 2019 remains the documented minimum.
+- **Plan names:** the pricing page now lists Basic and Pro; plan aliases map
+  Pro/Premium/Startup/Basic to the documented allowances and costs.
+
 ## 0.5.3 – 2026-10-20
 
 Independent code review (fresh-eyes pass over every module) before the next

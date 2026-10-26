@@ -1,4 +1,4 @@
-# FortyGuard Temperature Intelligence Layer – QGIS plugin (0.5.3)
+# FortyGuard Temperature Intelligence Layer – QGIS plugin (0.5.4)
 
 Install the plugin, click the FortyGuard toolbar icon, enter **your own**
 FortyGuard API key, select an area and date, click **Generate Heatmap**, and
@@ -121,7 +121,7 @@ Each mode is one API request; the API computes the result.
   to Single day and tells you.
 * **Calendar month** submits the month's first and last day as a range of days
   (leap years handled; the current month is clipped to the days that normally
-  have data, today minus 7 days, and the dialog says so).
+  have data, today minus 14 days, and the dialog says so).
 * Every result becomes its own layer named with the analysis, dates, resolution
   and threshold. Zero hours and 00:00 are shown as real values, not gaps.
 * The summary shows valid tile counts, the share of valid **tiles** (not area)
@@ -144,7 +144,7 @@ very large areas that never finish. Before a live submission the dialog now
 checks the area against the documented coverage outline (block when fully
 outside, warn when partly outside), the area size (warn below one tile and above
 the plan allowance, block above 500 mi²), the dates (warn when the window ends
-within the last 7 days) and whether the identical request was already completed
+within the last 14 days) and whether the identical request was already completed
 (in this session or as a `request_fingerprint` in a sidecar in the output
 folder). All checks live in `fortyguard_heatmap/core/preflight.py` and can be
 bypassed in **Advanced settings**. The confirmation dialog states the expected
@@ -173,8 +173,8 @@ data for the most recent week is usually not available yet.
 2. Choose the polygon layer and select exactly one polygon feature on the map.
    The dialog shows the feature id, source CRS and approximate area.
 3. Pick the filter type and the required date/time fields. The API documents
-   2019‑01‑01 to now + 12 h, but the most recent days (about 7) are normally not
-   available yet, so the dialog defaults to a week ago. Range of hours ≤ 23 h;
+   2019‑01‑01 to now + 12 h, but the most recent one to two weeks are normally not
+   available yet, so the dialog defaults to two weeks ago. Range of hours ≤ 23 h;
    range of days ≤ 31 days counting both the start and the end date.
 4. Pick the resolution (60 / 80 / 100 m), output folder and maximum wait.
 5. Click **Generate Heatmap**, read the confirmation (area, request, expected

@@ -63,8 +63,8 @@
   </header>
 
   <div class="cta">
-    <a class="button" href="https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/releases/download/v0.5.3/fortyguard_heatmap-0.5.3.zip">Download FortyGuard Temperature Intelligence Layer 0.5.3 (ZIP)</a>
-    <span class="meta">Version 0.5.3 · 95 KB · GPL-2.0-or-later · <a href="https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap">Source on GitHub</a></span>
+    <a class="button" href="https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/releases/download/v0.5.4/fortyguard_heatmap-0.5.4.zip">Download FortyGuard Temperature Intelligence Layer 0.5.4 (ZIP)</a>
+    <span class="meta">Version 0.5.4 · 96 KB · GPL-2.0-or-later · <a href="https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap">Source on GitHub</a></span>
   </div>
 
   <h2>Install in QGIS</h2>
@@ -75,7 +75,7 @@
       <li>In the <strong>All</strong> tab search for <strong>FortyGuard</strong>, select <strong>FortyGuard Temperature Intelligence Layer</strong> and click <strong>Install Plugin</strong>. (Offline alternative: <strong>Install from ZIP</strong> with the file above.)</li>
       <li>In the <strong>Installed</strong> tab make sure <strong>FortyGuard Temperature Intelligence Layer</strong> is ticked. A FortyGuard button appears in the toolbar.</li>
       <li>Click the button, paste <strong>your own FortyGuard API key</strong>, and click <em>Check key and credits</em>.</li>
-      <li>Select exactly one polygon on the map (United States), choose a date at least a week ago and the resolution, then click <strong>Generate Heatmap</strong>.</li>
+      <li>Select exactly one polygon on the map (United States), choose a date at least two weeks ago and the resolution, then click <strong>Generate Heatmap</strong>.</li>
     </ol>
     <figure>
       <img src="plugin-dialog.png" alt="The FortyGuard Temperature Intelligence Layer dialog in QGIS after a completed request">
@@ -84,7 +84,7 @@
   </div>
 
   <h2>Your API key</h2>
-  <p>The plugin works with your own FortyGuard API key. Get one on the <a href="https://www.fortyguard.com/api-pricing">FortyGuard API plans page</a>. The key is sent only to the FortyGuard API, is kept in memory while QGIS runs, and can optionally be saved in the encrypted QGIS authentication database. Every completed heatmap request consumes credits from your plan (documented: 3,500 credits on API Basic/Startup, 4,220 on API Premium; rejected and failed tasks are free, a completed job with no tiles is charged). Coverage is documented as the United States, and data for the most recent days (about one week) is usually not available yet. The plugin checks the area, the dates and duplicate requests before it submits anything that costs credits.</p>
+  <p>The plugin works with your own FortyGuard API key. Get one on the <a href="https://www.fortyguard.com/api-pricing">FortyGuard API plans page</a>. The key is sent only to the FortyGuard API, is kept in memory while QGIS runs, and can optionally be saved in the encrypted QGIS authentication database. Every completed heatmap request consumes credits from your plan (documented: 3,500 credits on API Basic/Startup, 4,220 on API Premium; rejected and failed tasks are free, a completed job with no tiles is charged). Coverage is documented as the United States, and data for the most recent one to two weeks is usually not available yet. The plugin checks the area, the dates and duplicate requests before it submits anything that costs credits.</p>
 
   <h2>What you get</h2>
   <div class="band">

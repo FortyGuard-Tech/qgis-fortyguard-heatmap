@@ -230,9 +230,13 @@ class MonthRangeTests(unittest.TestCase):
         payload.build_date_time(4, first, end_date=last, now=NOW)  # 31-day month passes the <= 31 day rule
 
     def test_current_month_is_clipped_to_recent_data_cutoff(self):
-        # NOW = 2026-10-12 -> data normally available up to 2026-10-05 (7-day latency observed in testing)
-        self.assertEqual(payload.month_range(2026, 10, now=NOW), ("2026-10-01", "2026-10-05"))
+        # NOW = 2026-10-12 -> with the 14-day default nothing of October is available yet
+        with self.assertRaises(ValidationError):
+            payload.month_range(2026, 10, now=NOW)
+        # with a 7-day latency (the first observation) the month is clipped to 2026-10-05
+        self.assertEqual(payload.month_range(2026, 10, now=NOW, latency_days=7), ("2026-10-01", "2026-10-05"))
         self.assertTrue(payload.month_was_clipped(2026, 10, "2026-10-01", "2026-10-05"))
+        self.assertEqual(payload.month_range(2026, 10, now=dt.datetime(2026, 10, 26, 12, 0)), ("2026-10-01", "2026-10-12"))
         self.assertFalse(payload.month_was_clipped(2024, 7, "2024-07-01", "2024-07-31"))
         # a custom latency is honoured
         self.assertEqual(payload.month_range(2026, 10, now=NOW, latency_days=1), ("2026-10-01", "2026-10-11"))
@@ -243,9 +247,9 @@ class MonthRangeTests(unittest.TestCase):
         self.assertIn("no available data yet", str(cm.exception))
         with self.assertRaises(ValidationError):
             payload.month_range(2027, 1, now=NOW)
-        # early in a month the whole month is still unavailable (NOW - 7 days is in September)
+        # early in a month the whole month is still unavailable (NOW - 14 days is in September)
         with self.assertRaises(ValidationError) as cm:
-            payload.month_range(2026, 10, now=dt.datetime(2026, 10, 3, 1, 0))
+            payload.month_range(2026, 10, now=dt.datetime(2026, 10, 10, 1, 0))
         self.assertIn("2026-09-26", str(cm.exception))
 
     def test_month_before_api_start_rejected_and_partial_first_month(self):
@@ -254,7 +258,7 @@ class MonthRangeTests(unittest.TestCase):
         self.assertEqual(payload.month_range(2019, 1, now=NOW), ("2019-01-01", "2019-01-31"))
 
     def test_month_with_a_single_available_day(self):
-        now = dt.datetime(2026, 10, 8, 1, 0)  # cutoff = 2026-10-01: only one day of October available
+        now = dt.datetime(2026, 10, 15, 1, 0)  # cutoff = 2026-10-01: only one day of October available
         with self.assertRaises(ValidationError) as cm:
             payload.month_range(2026, 10, now=now)
         self.assertIn("Single day", str(cm.exception))
@@ -262,14 +266,23 @@ class MonthRangeTests(unittest.TestCase):
 
 class RecentDataTests(unittest.TestCase):
     def test_cutoff_and_warning(self):
-        self.assertEqual(payload.recent_data_cutoff(NOW), dt.date(2026, 10, 5))
-        self.assertIsNone(payload.recent_data_warning("2026-10-05", now=NOW))
-        self.assertIsNone(payload.recent_data_warning("2026-09-01", "2026-09-30", now=NOW))
+        self.assertEqual(contract.DATA_LATENCY_DAYS, 14)
+        self.assertEqual(payload.recent_data_cutoff(NOW), dt.date(2026, 9, 28))
+        self.assertEqual(payload.recent_data_cutoff(NOW, latency_days=7), dt.date(2026, 10, 5))
+        self.assertIsNone(payload.recent_data_warning("2026-09-28", now=NOW))
+        self.assertIsNone(payload.recent_data_warning("2026-09-01", "2026-09-27", now=NOW))
         w = payload.recent_data_warning("2026-10-11", now=NOW)   # "yesterday": rejected by the API in testing
-        self.assertIn("2026-10-05", w)
+        self.assertIn("2026-09-28", w)
         self.assertIn("not available yet", w)
         w = payload.recent_data_warning("2026-10-01", "2026-10-08", now=NOW)
         self.assertIn("2026-10-08", w)
+
+    def test_early_date_warning(self):
+        self.assertIsNone(payload.early_date_warning("2021-01-01"))
+        self.assertIsNone(payload.early_date_warning("2024-07-15"))
+        w = payload.early_date_warning("2020-07-15")
+        self.assertIn("2021", w); self.assertIn("free of charge", w)
+        payload.build_date_time(3, "2019-07-15", now=NOW)   # still allowed (documented minimum)
 
     def test_latest_allowed_date_still_documented_bound(self):
         # the documented limit (now + 12 h) is still the hard validation bound; latency is a warning only

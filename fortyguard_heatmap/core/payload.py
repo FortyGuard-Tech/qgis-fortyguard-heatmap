@@ -67,9 +67,20 @@ def recent_data_warning(start_date, end_date=None, now=None):
     last = parse_date(end_date) if end_date else parse_date(start_date)
     if last <= cutoff:
         return None
-    return ("The selected period ends on %s. FortyGuard data for the most recent days (about the last %d) is "
-            "usually not available yet; the API then rejects the request with 'Temperature data is unavailable' "
+    return ("The selected period ends on %s. FortyGuard data for the most recent one to two weeks (about the last %d days) "
+            "is usually not available yet; the API then rejects the request with 'Temperature data is unavailable' "
             "(no charge). Dates up to %s normally work." % (last.isoformat(), contract.DATA_LATENCY_DAYS, cutoff.isoformat()))
+
+
+def early_date_warning(start_date):
+    """Warning when the window starts before the temperature catalog (2021 per FortyGuard's quickstart)."""
+    first = parse_date(start_date)
+    if first >= _dt.date.fromisoformat(contract.CATALOG_START_ISO):
+        return None
+    return ("The period starts on %s. FortyGuard's quickstart states that the temperature catalog covers %s to today; "
+            "earlier dates were rejected in testing with HTTP 400 (free of charge). The documentation pages still "
+            "say %s, so the request is allowed but will probably be rejected."
+            % (first.isoformat(), contract.CATALOG_START_ISO[:4], contract.MIN_DATE_ISO))
 
 
 def check_date_bounds(day, now=None):
@@ -210,7 +221,7 @@ def month_range(year, month, now=None, latency_days=None):
     cutoff = recent_data_cutoff(now, latency_days)
     if first > cutoff:
         raise ValidationError(
-            "%s has no available data yet. FortyGuard data appears about %d days after each day; "
+            "%s has no available data yet. FortyGuard data appears one to two weeks (about %d days) after each day; "
             "the latest date that normally works is %s."
             % (first.strftime("%B %Y"), contract.DATA_LATENCY_DAYS, cutoff.isoformat()))
     if first < min_day:

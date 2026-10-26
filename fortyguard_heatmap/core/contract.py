@@ -105,12 +105,26 @@ MAX_RANGE_OF_DAYS = 31                # Create Heatmap page: "Range of Days — 
 # practice. Requests for the last few days were rejected with HTTP 400 "Temperature data is unavailable
 # for one or more hours in the selected date/time range"; the latest day that completed was 5 days back.
 # The plugin therefore defaults to dates this many days ago and warns for more recent windows.
-DATA_LATENCY_DAYS = 7
+# On 2026-10-26 the newest available day was still 2026-10-13 (13 days back): the feed does not advance at a
+# fixed pace, so the default is two weeks.
+DATA_LATENCY_DAYS = 14
 NO_DATA_MESSAGE_MARKERS = ("data is unavailable", "unavailable for one or more hours", "no data available")
+# Observed 2026-10-26 (production): a US area with a 2019 or 2020 date is rejected with HTTP 400 and the
+# message "...outside supported U.S. coverage. Availability within the United States also depends on the
+# tool, location, date, and data source." The official quickstart README states that the temperature
+# catalog covers 2021 to today. The documentation pages still say 2019-01-01, so 2019 stays the hard
+# minimum and dates before CATALOG_START_ISO only produce a warning.
+CATALOG_START_ISO = "2021-01-01"
+COVERAGE_MESSAGE_MARKERS = ("outside supported u.s. coverage", "supported regions within the united states")
 
 # Plan limits (documented 2026-10-12). Enforced server-side; shown to the user only.
 AREA_CAP_SQ_MI = {"API Basic": 10, "API Startup": 10, "API Premium": 50}
 CREDITS_PER_REQUEST = {"API Basic": 3500, "API Startup": 3500, "API Premium": 4220}
+# The public pricing page (read 2026-10-26) now names the plans BASIC ($79, 1,000,000 credits, 10 mi2) and
+# PRO ($289, 5,000,000 credits, 50 mi2) while the documentation still says Basic / Startup / Premium.
+# plan_type strings seen from the usage endpoint: "Premium", "Hackathon". Aliases map a plan_type to the
+# documented row (lower-case substring match).
+PLAN_ALIASES = {"pro": "API Premium", "premium": "API Premium", "startup": "API Startup", "basic": "API Basic"}
 # Observed in internal testing (2026-10-19): every completed request on the tested Premium and Hackathon
 # keys cost exactly this many credits, whatever the area or resolution. Empty "Completed" results
 # (0 tiles) were charged too; HTTP 400 rejections and jobs reported "Failed" were free.

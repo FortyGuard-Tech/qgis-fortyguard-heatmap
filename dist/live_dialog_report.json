@@ -19,13 +19,13 @@
     {
       "name": "credits_check",
       "ok": true,
-      "text": "Plan: Hackathon (Hackathon) | Key: active | Credits remaining: 8,538,680 | of 10,042,940 | Key expires: 2027-09-15T12:15:58.642744Z"
+      "text": "Plan: Hackathon (Hackathon) | Key: active | Credits remaining: 8,334,980 | of 10,042,940 | Key expires: 2027-11-15T12:15:58.642744Z"
     },
     {
       "name": "aoi_selected",
       "ok": true,
-      "crs": "EPSG:3857",
-      "selection_text": "Feature 1 of 'Demo AOI (synthetic test area)' | source CRS EPSG:3857 | ~1.71 km\u00b2 (0.66 mi\u00b2) | sent as EPSG:4326 Polygon | inside documented coverage (contiguous United States)"
+      "crs": "EPSG:4326",
+      "selection_text": "Feature 1 of 'Sample live AOI: Downtown Phoenix (2 km square)' | source CRS EPSG:4326 | ~4.00 km\u00b2 (1.55 mi\u00b2) | sent as EPSG:4326 Polygon | inside documented coverage (contiguous United States)"
     },
     {
       "name": "date_used",
@@ -35,7 +35,7 @@
     {
       "name": "confirmation_shown_and_accepted",
       "ok": true,
-      "text": "Submit a live FortyGuard request?\n\nEnvironment: https://api.fortyguard.com\nAnalysis: Temperature / Snapshot (\u00b0C)\nArea: feature 1 of 'Demo AOI (synthetic test area)' (~1.71 km\u00b2 / 0.66 mi\u00b2)\nRequest: 2026-10-13 | 100 m (filter type 3)\n\nYour plan (Hackathon) has no documented per-request cost. In internal testing every completed request cost 4,220 credits regardless of plan, area or resolution. Credit"
+      "text": "Submit a live FortyGuard request?\n\nEnvironment: https://api.fortyguard.com\nAnalysis: Temperature / Snapshot (\u00b0C)\nArea: feature 1 of 'Sample live AOI: Downtown Phoenix (2 km square)' (~4.00 km\u00b2 / 1.55 mi\u00b2)\nRequest: 2026-10-13 | 100 m (filter type 3)\n\nYour plan (Hackathon) has no documented per-request cost. In internal testing every completed request cost 4,220 credits regardless of plan, area or r"
     },
     {
       "name": "job_active",
@@ -51,91 +51,24 @@
     {
       "name": "activity_id",
       "ok": true,
-      "activity_id": "c2a98efa-930e-4c1c-8258-08005de1126d"
+      "activity_id": "aab471ce-a8b6-4a9a-80a2-08a4073bd828"
     },
     {
       "name": "status_polling_seen",
       "ok": true,
       "statuses": [
-        "[16:21:51] Status: Submitted (Waiting for the first status check)",
-        "[16:21:56] Status: Processing (Job still running)",
-        "[16:22:09] Status: Completed (Result received)"
+        "[11:49:48] Status: Submitted (Waiting for the first status check)",
+        "[11:49:53] Status: Processing (Job still running)",
+        "[11:50:08] Status: Completed (Result received)"
       ]
     },
     {
-      "name": "result_layer_added",
-      "ok": true,
-      "layer_name": "FortyGuard tcm mean \u00b0C | 2026-10-13 | 100 m",
-      "features": 150,
-      "crs": "EPSG:4326",
-      "source": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2026-10-13_100m_c2a98efa_20261020_162209.geojson",
-      "demo_flag": "false"
-    },
-    {
-      "name": "not_labelled_demo",
-      "ok": true
-    },
-    {
-      "name": "styled_graduated",
-      "ok": true,
-      "attribute": "average_temperature",
-      "classes": 10,
-      "labels": [
-        "18.51 - 18.51 \u00b0C",
-        "18.51 - 18.52 \u00b0C",
-        "18.52 - 18.52 \u00b0C",
-        "18.52 - 18.53 \u00b0C",
-        "18.53 - 18.56 \u00b0C",
-        "18.56 - 18.59 \u00b0C",
-        "18.59 - 18.63 \u00b0C",
-        "18.63 - 18.68 \u00b0C",
-        "18.68 - 18.73 \u00b0C",
-        "18.73 - 18.79 \u00b0C"
-      ]
-    },
-    {
-      "name": "numeric_field",
-      "ok": true,
-      "type": "Real",
-      "min": 18.5132,
-      "max": 18.7869
-    },
-    {
-      "name": "stats_shown",
-      "ok": true,
-      "text": "API stats_data (\u00b0C): min 18.51, max 18.79, mean 18.59, sd 0.09\nMeasure 'average_temperature': 150 valid tiles, range 18.51 to 18.79 \u00b0C (spread 0.27, mean 18.59); 0 missing"
-    },
-    {
-      "name": "file_saved",
-      "ok": true,
-      "path": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/fortyguard_tcm_2026-10-13_100m_c2a98efa_20261020_162209.geojson"
-    },
-    {
-      "name": "meta_has_no_key",
-      "ok": true,
-      "activity": "c2a98efa-930e-4c1c-8258-08005de1126d"
-    },
-    {
-      "name": "dialog_screenshot",
-      "ok": true,
-      "path": "/Users/mustafahamdy/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins/dist/live_dialog_screenshot.png"
-    },
-    {
-      "name": "canvas_screenshot",
-      "ok": true,
-      "path": "/Users/mustafahamdy/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins/dist/live_dialog_canvas.png"
-    },
-    {
-      "name": "project_saved",
-      "ok": true,
-      "path": "/Users/mustafahamdy/Documents/FortyGuard Heatmaps/live_dialog_project.qgz"
-    },
-    {
-      "name": "project_reopened_layer_resolves",
-      "ok": true
+      "name": "exception",
+      "ok": false,
+      "trace": "Traceback (most recent call last):\n  File \"<string>\", line 177, in _verify\nAttributeError: 'QgsRasterLayer' object has no attribute 'featureCount'\n"
     }
   ],
-  "ok": true,
-  "started": "2026-10-20 16:21:45",
-  "finished": "2026-10-20 16:22:13"
+  "ok": false,
+  "started": "2026-10-26 11:49:42",
+  "finished": "2026-10-26 11:50:09"
 }

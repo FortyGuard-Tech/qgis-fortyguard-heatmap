@@ -91,6 +91,18 @@ class CostTextTests(unittest.TestCase):
         self.assertIn("4,220", t); self.assertIn("9,365,500", t); self.assertIn("API Premium", t)
         self.assertIn("3,500", preflight.expected_cost_text("Startup"))
 
+    def test_pricing_page_plan_names_map_to_documented_rows(self):
+        self.assertEqual(preflight.documented_plan("Pro"), "API Premium")
+        self.assertEqual(preflight.documented_plan("API Basic"), "API Basic")
+        self.assertEqual(preflight.documented_plan("Startup"), "API Startup")
+        self.assertIsNone(preflight.documented_plan("Hackathon"))
+        self.assertIsNone(preflight.documented_plan(None))
+        self.assertIn("4,220", preflight.expected_cost_text("Pro"))
+        a = preflight.area_assessment(12 / 0.386102, 100, plan_type="Pro")
+        self.assertEqual(a["warnings"], [], "12 mi2 is within the 50 mi2 Pro/Premium allowance")
+        a = preflight.area_assessment(12 / 0.386102, 100, plan_type="Basic")
+        self.assertTrue(a["warnings"])
+
     def test_unknown_plan_states_observed_cost(self):
         t = preflight.expected_cost_text("Hackathon")
         self.assertIn("Hackathon", t)
