@@ -37,7 +37,7 @@ fortyguard_heatmap/        the plugin (this folder is what goes into the ZIP)
   core/demo.py             offline fake client replaying fixtures (same job path)
   fixtures/                SYNTHETIC demo AOI + results (see fixtures/README.md)
 tests/                     unit + QGIS-runtime tests
-scripts/                   run_tests.sh, package.sh, install_dev.sh, live_check.py,
+scripts/                   run_tests.sh, package.sh, build_plugin_repo.py, install_dev.sh, live_check.py,
                            qgis_gui_check.py, make_demo_fixtures.py
 docs/API_CONTRACT.md       verified endpoints, schemas, units, limits, open questions
 docs/TEST_REPORT.md        what was executed, outcomes, what is still pending
@@ -50,15 +50,17 @@ dist/                      built ZIP and in-app check artefacts
 
 Two options. Option A is what a normal user does; option B is for development.
 
-### Option A – install from the QGIS Plugin Manager (official repository)
+### Option A – install from the FortyGuard plugin repository (inside QGIS)
 
-The plugin is listed at https://plugins.qgis.org/plugins/fortyguard_heatmap/.
+The plugin is distributed from the FortyGuard plugin repository, which QGIS reads like any other
+repository (install page: https://fortyguard-tech.github.io/qgis-fortyguard-heatmap/).
 
-1. In QGIS: **Plugins ▸ Manage and Install Plugins…** ▸ **All** tab ▸ search "FortyGuard"
-   ▸ **FortyGuard Temperature Intelligence Layer** ▸ **Install Plugin**.
-   (Versions before 0.5.0 were marked experimental and needed **Settings ▸ Show also
-   experimental plugins**; 0.5.0 does not.)
-2. The toolbar button and **Plugins ▸ FortyGuard Temperature Intelligence Layer** menu entry appear.
+1. In QGIS: **Plugins ▸ Manage and Install Plugins…** ▸ **Settings** ▸ under **Plugin Repositories**
+   click **Add…** ▸ Name `FortyGuard`, URL
+   `https://fortyguard-tech.github.io/qgis-fortyguard-heatmap/plugins.xml` ▸ **OK** (one-time step).
+2. Back in the **All** tab search "FortyGuard" ▸ **FortyGuard Temperature Intelligence Layer** ▸ **Install Plugin**.
+3. The toolbar button and **Plugins ▸ FortyGuard Temperature Intelligence Layer** menu entry appear.
+   Updates show up in the Plugin Manager automatically.
 
 ### Option A2 – install the ZIP (offline)
 
@@ -258,3 +260,17 @@ support@fortyguard.com. Source: https://github.com/FortyGuard-Tech/qgis-fortygua
 Schema knowledge verified against the FortyGuard API documentation and the
 MIT‑licensed FortyGuard‑Tech/temperature‑api‑quickstart repository; no code
 copied. Demo tile values are synthetic.
+
+## Releasing to the FortyGuard plugin repository
+
+The repository is the `gh-pages` branch, served by GitHub Pages. For each release:
+
+```bash
+scripts/package.sh                                   # dist/fortyguard_heatmap-<version>.zip
+git worktree add ../fg-plugin-repo gh-pages          # once
+python3 scripts/build_plugin_repo.py --out ../fg-plugin-repo
+cd ../fg-plugin-repo && git add -A && git commit -m "Plugin repository: <version>" && git push
+```
+
+`build_plugin_repo.py` derives `plugins.xml`, the install page and the package name
+(`fortyguard_heatmap.<version>.zip`, dot before the version as QGIS expects) from `metadata.txt`.
