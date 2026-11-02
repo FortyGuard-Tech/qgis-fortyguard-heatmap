@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FortyGuard QGIS plugin repository</title>
+<style>
+  :root { --fg:#16202c; --muted:#66717f; --blue:#2f6fdb; --bg:#ffffff; --box:#f3f6fa; --line:#d9dfe7; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#e8edf3; --muted:#9aa5b3; --bg:#101722; --box:#17202d; --line:#2a3542; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:40px 16px 64px; }
+  h1 { font-size:28px; line-height:1.2; margin:16px 0 8px; }
+  h2 { font-size:20px; margin:32px 0 8px; }
+  p { margin:8px 0; }
+  .muted { color:var(--muted); }
+  code, pre { font:14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background:var(--box); border:1px solid var(--line); border-radius:6px; padding:12px 14px; overflow:auto; }
+  ol li { margin:6px 0; }
+  a { color:var(--blue); }
+  .btn { display:inline-block; background:var(--blue); color:#fff; text-decoration:none; padding:10px 18px; border-radius:4px; font-weight:700; margin-top:8px; }
+  img.icon { width:64px; height:64px; display:block; }
+</style>
+</head>
+<body>
+<main>
+  <img class="icon" src="icon.png" alt="">
+  <h1>FortyGuard Temperature Intelligence Layer</h1>
+  <p class="muted">Version 0.5.4 &middot; QGIS 3.34 or newer &middot; updated 2026-11-02</p>
+  <p>Hyper-local temperature intelligence for a selected site or asset, as styled QGIS layers: temperature (°C), exceedance and persistence hours above a threshold, and peak temperature time, from the FortyGuard Temperature API.</p>
+
+  <h2>Install from inside QGIS (recommended)</h2>
+  <ol>
+    <li>Open QGIS, then <strong>Plugins &rsaquo; Manage and Install Plugins&hellip;</strong></li>
+    <li>Click <strong>Settings</strong> in the left column.</li>
+    <li>Under <strong>Plugin Repositories</strong> click <strong>Add&hellip;</strong></li>
+    <li>Name: <code>FortyGuard</code> &mdash; URL: copy the address below, then click <strong>OK</strong>.</li>
+    <li>Go back to <strong>All</strong>, search for <em>FortyGuard</em> and click <strong>Install Plugin</strong>.</li>
+  </ol>
+  <pre>https://fortyguard-tech.github.io/qgis-fortyguard-heatmap/plugins.xml</pre>
+  <p class="muted">QGIS checks this repository for updates like any other, so new versions appear in the Plugin Manager automatically.</p>
+
+  <h2>Or install the ZIP</h2>
+  <p>Download the package and use <strong>Plugins &rsaquo; Manage and Install Plugins&hellip; &rsaquo; Install from ZIP</strong>.</p>
+  <a class="btn" href="fortyguard_heatmap.0.5.4.zip">Download fortyguard_heatmap.0.5.4.zip</a>
+
+  <h2>Links</h2>
+  <p><a href="https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap#readme">Documentation and source code</a> &middot; <a href="https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/issues">Report an issue</a> &middot; <a href="https://www.fortyguard.com/api-pricing">Get an API key</a></p>
+</main>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugins>
+  <pyqgis_plugin name="FortyGuard Temperature Intelligence Layer" version="0.5.4" plugin_id="fortyguard_heatmap">
+    <description>Hyper-local temperature intelligence for a selected site or asset, as styled QGIS layers: temperature (°C), exceedance and persistence hours above a threshold, and peak temperature time, from the FortyGuard Temperature API.</description>
+    <about>FortyGuard Temperature Intelligence Layer brings the FortyGuard Temperature API into QGIS: hyper-local temperature for one site, asset or block, as styled map layers.
+
+WHAT YOU GET
+- Temperature / Snapshot: tile temperatures in degrees Celsius (mean, minimum or maximum for daily windows).
+- Exceedance: hours above a temperature threshold you choose.
+- Persistence: longest continuous run of hours above that threshold.
+- Peak temperature time: hour of day (UTC) when each tile is hottest.
+- Each result is a styled layer plus the saved GeoJSON tiles; by default a smooth interpolated surface is shown on top with the exact tiles kept underneath.
+
+HOW IT WORKS
+1. Paste your own FortyGuard API key and click &quot;Check key and credits&quot;.
+2. Select one polygon in your project (United States coverage).
+3. Choose the analysis, the time window (hour, range of hours, day, range of days or calendar month) and the resolution (60, 80 or 100 m).
+4. Click Generate Heatmap. The plugin checks the area, dates and duplicates before anything is charged, sends one request, polls the job without blocking QGIS, saves the result and adds the layer.
+
+EXAMPLE: A DATA CENTER SITE
+Draw the site boundary with the surrounding blocks. A single-day Temperature layer shows which side sits in the hottest tiles; Exceedance with a 35 degree threshold over a summer month counts the hours above that limit; Persistence shows the longest hot spell. Together they inform cooling load, capacity margins and operating constraints.
+
+GOOD TO KNOW
+- Credits: every completed request consumes credits of your plan; rejected and failed requests are free.
+- Data for the most recent one to two weeks is usually not available yet; the dialog defaults to two weeks ago. Coverage inside the United States depends on the location and date; a verified sample area (Phoenix) is one click away.
+- Coverage: United States. Areas outside it are stopped before they are charged.
+- Demo Mode (optional) replays clearly labelled synthetic data offline, with no key and no credits.
+- No external Python dependencies. Tested on macOS, Windows and Ubuntu with QGIS 3.40 to 3.44; QGIS 4 (Qt 6) is not supported yet.
+
+ABOUT FORTYGUARD
+FortyGuard is a temperature intelligence layer for the physical world: it estimates the local thermal state of a site, an asset or a route instead of the nearest weather station. One foundation powers the Temperature Dashboard, Temperature API, Temperature MCP and Temperature Enterprise products. API key: https://www.fortyguard.com/api-pricing - Documentation: https://docs-api.fortyguard.com/docs/introduction</about>
+    <version>0.5.4</version>
+    <qgis_minimum_version>3.34</qgis_minimum_version>
+    <qgis_maximum_version>3.99</qgis_maximum_version>
+    <homepage>https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap#readme</homepage>
+    <file_name>fortyguard_heatmap.0.5.4.zip</file_name>
+    <icon>https://fortyguard-tech.github.io/qgis-fortyguard-heatmap/icon.png</icon>
+    <author_name>FortyGuard</author_name>
+    <download_url>https://fortyguard-tech.github.io/qgis-fortyguard-heatmap/fortyguard_heatmap.0.5.4.zip</download_url>
+    <uploaded_by>FortyGuard</uploaded_by>
+    <create_date>2026-11-02</create_date>
+    <update_date>2026-11-02</update_date>
+    <experimental>False</experimental>
+    <deprecated>False</deprecated>
+    <tracker>https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/issues</tracker>
+    <repository>https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap</repository>
+    <tags>temperature,heatmap,climate,urban heat,heat island,fortyguard,api,vector,geojson,weather</tags>
+    <downloads>0</downloads>
+    <average_vote>0</average_vote>
+    <rating_votes>0</rating_votes>
+  </pyqgis_plugin>
+</plugins>
