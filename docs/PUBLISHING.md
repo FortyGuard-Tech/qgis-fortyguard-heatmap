@@ -45,3 +45,23 @@ Nothing has been uploaded yet; the plugin is **not** listed anywhere.
 
 Users can already install the ZIP via *Plugins → Manage and Install Plugins →
 Install from ZIP*. See `docs/download-page/` for the download-page content.
+
+
+## Counting installs
+
+plugins.qgis.org is not available to us, so the plugin is distributed from our own repository on GitHub Pages, and
+GitHub Pages keeps no download statistics. Instead, every download path points at the ZIP attached to the GitHub
+release, which GitHub counts:
+
+- `scripts/build_plugin_repo.py` writes the release asset URL into `<download_url>` of `plugins.xml` and into the
+  button on the install page, so installs and updates made through the QGIS Plugin Manager are counted.
+- The download page (`docs/download-page/`) and the documentation link the same release asset.
+- `python3 scripts/plugin_stats.py` prints the downloads per version, the total, and the 14-day repository traffic;
+  `--json` gives the same for a dashboard or a scheduled job.
+
+The number is downloads, not people: an update adds one download to the new version. Checking the repository for
+updates downloads nothing and is not counted. The plugin itself never reports anything home.
+
+Release checklist, in this order: `scripts/package.sh` > `gh release create v<version> dist/fortyguard_heatmap-<version>.zip`
+> `scripts/build_plugin_repo.py --out <folder>` (it refuses to build if the release asset is missing) > copy the folder
+to the `gh-pages` branch and push.

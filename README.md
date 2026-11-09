@@ -267,6 +267,7 @@ The repository is the `gh-pages` branch, served by GitHub Pages. For each releas
 
 ```bash
 scripts/package.sh                                   # dist/fortyguard_heatmap-<version>.zip
+python3 scripts/plugin_stats.py                      # downloads per release (GitHub release asset counter)
 git worktree add ../fg-plugin-repo gh-pages          # once
 python3 scripts/build_plugin_repo.py --out ../fg-plugin-repo
 cd ../fg-plugin-repo && git add -A && git commit -m "Plugin repository: <version>" && git push

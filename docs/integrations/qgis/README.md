@@ -21,4 +21,4 @@ Public URLs for every image:
 
 Plugin repository (what users add in QGIS): `https://fortyguard-tech.github.io/qgis-fortyguard-heatmap/plugins.xml`
 Install page: `https://fortyguard-tech.github.io/qgis-fortyguard-heatmap/`
-Current package: `https://fortyguard-tech.github.io/qgis-fortyguard-heatmap/fortyguard_heatmap.0.5.4.zip`
+Current package (use this link everywhere; GitHub counts its downloads): `https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/releases/download/v0.5.4/fortyguard_heatmap-0.5.4.zip`

@@ -7,13 +7,21 @@ repository URL is added under Plugins > Manage and Install Plugins > Settings).
 The output folder is what gets published (GitHub Pages branch "gh-pages"):
 
     plugins.xml                     the index QGIS fetches (one entry: the current version)
-    fortyguard_heatmap.<ver>.zip    the plugin package; the dot before the version is REQUIRED,
-                                    QGIS derives the plugin id from the part before the first dot
+    fortyguard_heatmap.<ver>.zip    the plugin package, kept as a fallback copy; the dot before the
+                                    version is REQUIRED, QGIS derives the plugin id from the part
+                                    before the first dot
     icon.png                        plugin icon shown in the Plugin Manager
     index.html                      install instructions for people who open the URL in a browser
     .nojekyll                       keeps GitHub Pages from processing the folder
 
 Everything is derived from fortyguard_heatmap/metadata.txt; nothing is typed twice.
+
+Download counting: <download_url> in plugins.xml and the button on the install page point at the
+GitHub *Release* asset (releases/download/v<ver>/fortyguard_heatmap-<ver>.zip), not at the copy on
+GitHub Pages. GitHub counts every download of a release asset, so installs from the QGIS Plugin
+Manager, from the install page and from the documentation all land in one counter
+(scripts/plugin_stats.py prints it). GitHub Pages has no counter. The QGIS installer follows the
+redirect GitHub answers with (up to four redirections are allowed).
 """
 import argparse
 import configparser
@@ -22,6 +30,8 @@ import html
 import pathlib
 import shutil
 import sys
+import urllib.error
+import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PLUGIN_ID = "fortyguard_heatmap"
@@ -34,7 +44,27 @@ def read_metadata():
     return cp["general"]
 
 
-def plugins_xml(g, base_url, zip_name, today):
+def release_asset_url(g, version):
+    """URL of the ZIP attached to the GitHub release v<version> (what scripts/package.sh + gh release upload produce)."""
+    return f"{g['repository'].rstrip('/')}/releases/download/v{version}/{PLUGIN_ID}-{version}.zip"
+
+
+def check_url(url):
+    """Return True when the URL answers (2xx or a redirect, which is what GitHub release assets return)."""
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+    req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "fortyguard-build-plugin-repo"})
+    try:
+        with urllib.request.build_opener(NoRedirect).open(req, timeout=20) as r:
+            return 200 <= r.status < 400
+    except urllib.error.HTTPError as err:
+        return 300 <= err.code < 400
+    except urllib.error.URLError:
+        return False
+
+
+def plugins_xml(g, base_url, zip_name, download_url, today):
     e = html.escape
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <plugins>
@@ -48,7 +78,7 @@ def plugins_xml(g, base_url, zip_name, today):
     <file_name>{zip_name}</file_name>
     <icon>{base_url}icon.png</icon>
     <author_name>{e(g['author'])}</author_name>
-    <download_url>{base_url}{zip_name}</download_url>
+    <download_url>{download_url}</download_url>
     <uploaded_by>{e(g['author'])}</uploaded_by>
     <create_date>{today}</create_date>
     <update_date>{today}</update_date>
@@ -65,7 +95,7 @@ def plugins_xml(g, base_url, zip_name, today):
 """
 
 
-def index_html(g, base_url, zip_name, today):
+def index_html(g, base_url, zip_name, download_url, today):
     e = html.escape
     repo_url = f"{base_url}plugins.xml"
     return f"""<!DOCTYPE html>
@@ -111,7 +141,7 @@ def index_html(g, base_url, zip_name, today):
 
   <h2>Or install the ZIP</h2>
   <p>Download the package and use <strong>Plugins &rsaquo; Manage and Install Plugins&hellip; &rsaquo; Install from ZIP</strong>.</p>
-  <a class="btn" href="{zip_name}">Download {zip_name}</a>
+  <a class="btn" href="{download_url}">Download {zip_name}</a>
 
   <h2>Links</h2>
   <p><a href="{e(g['homepage'])}">Documentation and source code</a> &middot; <a href="{e(g['tracker'])}">Report an issue</a> &middot; <a href="https://www.fortyguard.com/api-pricing">Get an API key</a></p>
@@ -126,6 +156,8 @@ def main():
     ap.add_argument("--out", required=True, help="output folder (created; existing index files are overwritten)")
     ap.add_argument("--base-url", default=DEFAULT_BASE_URL, help="public URL the folder will be served from (with trailing slash)")
     ap.add_argument("--zip", help="plugin ZIP built by scripts/package.sh (default: dist/fortyguard_heatmap-<version>.zip)")
+    ap.add_argument("--download-url", help="where QGIS downloads the package from (default: the GitHub release asset, so downloads are counted)")
+    ap.add_argument("--no-check", action="store_true", help="do not verify that the download URL answers")
     args = ap.parse_args()
 
     g = read_metadata()
@@ -138,15 +170,20 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
 
     zip_name = f"{PLUGIN_ID}.{version}.zip"
+    download_url = args.download_url or release_asset_url(g, version)
+    if not args.no_check and not check_url(download_url):
+        sys.exit(f"Download URL does not answer: {download_url}\n"
+                 f"Publish the release first (gh release create v{version} dist/{PLUGIN_ID}-{version}.zip) or pass --download-url / --no-check.")
     today = dt.date.today().isoformat()
     shutil.copyfile(src_zip, out / zip_name)
     shutil.copyfile(ROOT / PLUGIN_ID / "resources" / "icon.png", out / "icon.png")
-    (out / "plugins.xml").write_text(plugins_xml(g, base_url, zip_name, today), encoding="utf-8")
-    (out / "index.html").write_text(index_html(g, base_url, zip_name, today), encoding="utf-8")
+    (out / "plugins.xml").write_text(plugins_xml(g, base_url, zip_name, download_url, today), encoding="utf-8")
+    (out / "index.html").write_text(index_html(g, base_url, zip_name, download_url, today), encoding="utf-8")
     (out / ".nojekyll").write_text("")
     print(f"Repository built in {out}")
     print(f"  index:    {base_url}plugins.xml")
-    print(f"  package:  {base_url}{zip_name}")
+    print(f"  download: {download_url}")
+    print(f"  fallback: {base_url}{zip_name}")
 
 
 if __name__ == "__main__":
