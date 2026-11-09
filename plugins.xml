@@ -36,10 +36,10 @@ FortyGuard is a temperature intelligence layer for the physical world: it estima
     <file_name>fortyguard_heatmap.0.5.4.zip</file_name>
     <icon>https://fortyguard-tech.github.io/qgis-fortyguard-heatmap/icon.png</icon>
     <author_name>FortyGuard</author_name>
-    <download_url>https://fortyguard-tech.github.io/qgis-fortyguard-heatmap/fortyguard_heatmap.0.5.4.zip</download_url>
+    <download_url>https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/releases/download/v0.5.4/fortyguard_heatmap-0.5.4.zip</download_url>
     <uploaded_by>FortyGuard</uploaded_by>
-    <create_date>2026-11-02</create_date>
-    <update_date>2026-11-02</update_date>
+    <create_date>2026-11-09</create_date>
+    <update_date>2026-11-09</update_date>
     <experimental>False</experimental>
     <deprecated>False</deprecated>
     <tracker>https://github.com/FortyGuard-Tech/qgis-fortyguard-heatmap/issues</tracker>
